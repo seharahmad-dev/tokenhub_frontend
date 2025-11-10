@@ -39,8 +39,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const auth = useAuthHeaders();
-
   useEffect(() => {
     let mounted = true;
     async function load() {

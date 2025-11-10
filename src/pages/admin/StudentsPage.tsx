@@ -1,10 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../../lib/api"; // axios instance with baseURL + auth
+import axios from "axios";
 import Modal from "../../components/common/Modal";
 import EmptyState from "../../components/common/EmptyState";
 import StudentsToolbar from "../../components/admin/students/StudentsToolbar";
 import StudentForm, { StudentPayload } from "../../components/admin/students/StudentForm";
 import StudentRow, { Student } from "../../components/admin/students/StudentRow";
+
+/** choose API base based on role (Admin page -> Admin API) */
+const getApiBase = (role: "Admin" | "Student" | "Faculty" | "HOD" | "Club") => {
+  switch (role) {
+    case "Admin":
+      return import.meta.env.VITE_ADMIN_API;
+    case "Student":
+      return import.meta.env.VITE_STUDENT_API;
+    case "Faculty":
+      return import.meta.env.VITE_FACULTY_API;
+    case "HOD":
+      return import.meta.env.VITE_HOD_API;
+    case "Club":
+      return import.meta.env.VITE_CLUB_API;
+  }
+};
 
 export default function StudentsPage() {
   const [items, setItems] = useState<Student[]>([]);
@@ -20,19 +36,29 @@ export default function StudentsPage() {
   async function fetchAll() {
     setLoading(true);
     try {
-      const { data } = await api.get("/student/all");
-      setItems(data?.data ?? data ?? []);
+      const res = await axios.get(`${getApiBase("Student")}/student/all`, {
+        withCredentials: true,
+      });
+      // keep compatibility with existing api.get usage
+      setItems(res?.data?.data ?? res?.data ?? []);
+    } catch (err) {
+      console.error("Failed to fetch students", err);
+      setItems([]);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    fetchAll();
+  }, []);
 
   const filtered = useMemo(() => {
     const norm = (s: string) => s.toLowerCase();
-    return items.filter(s => {
-      const hit = [s.firstName, s.lastName, s.email, s.usn].some(v => norm(String(v)).includes(norm(q)));
+    return items.filter((s) => {
+      const hit = [s.firstName, s.lastName, s.email, s.usn].some((v) =>
+        norm(String(v)).includes(norm(q))
+      );
       const okBranch = branch ? s.branch === branch : true;
       return hit && okBranch;
     });
@@ -40,33 +66,60 @@ export default function StudentsPage() {
 
   // Create
   const handleCreate = async (p: StudentPayload) => {
-    await api.post("/student/register", p); // Admin-protected
-    setCreateOpen(false);
-    fetchAll();
+    try {
+      await axios.post(`${getApiBase("Student")}/student/register`, p, {
+        headers: { "Content-Type": "application/json" },
+        withCredentials: true, // keep cookie auth
+      });
+      setCreateOpen(false);
+      fetchAll();
+    } catch (err) {
+      console.error("Create student failed", err);
+      alert("Failed to create student");
+    }
   };
 
   // Update
   const handleUpdate = async (p: StudentPayload) => {
     if (!editRow) return;
-    await api.patch(`/student/${editRow._id}`, {
-      firstName: p.firstName,
-      lastName: p.lastName,
-      email: p.email,
-      branch: p.branch,
-      usn: p.usn,
-      semester: p.semester,
-      personalEmail: p.personalEmail
-    });
-    setEditOpen(false);
-    setEditRow(null);
-    fetchAll();
+    try {
+      await axios.patch(
+        `${getApiBase("Student")}/student/${editRow._id}`,
+        {
+          firstName: p.firstName,
+          lastName: p.lastName,
+          email: p.email,
+          branch: p.branch,
+          usn: p.usn,
+          semester: p.semester,
+          personalEmail: p.personalEmail,
+        },
+        {
+          headers: { "Content-Type": "application/json" },
+          withCredentials: true,
+        }
+      );
+      setEditOpen(false);
+      setEditRow(null);
+      fetchAll();
+    } catch (err) {
+      console.error("Update student failed", err);
+      alert("Failed to update student");
+    }
   };
 
   // Delete
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this student?")) return;
-    await api.delete(`/student/${id}`);
-    fetchAll();
+    try {
+      await axios.delete(`${getApiBase("Student")}/student/${id}`, {
+        withCredentials: true,
+      });
+      fetchAll();
+    } catch (err) {
+      console.error("Delete student failed", err);
+      alert("Failed to delete student");
+    }
   };
 
   return (
@@ -100,15 +153,26 @@ export default function StudentsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td className="px-3 py-8" colSpan={6}>Loading…</td></tr>
+                  <tr>
+                    <td className="px-3 py-8" colSpan={6}>
+                      Loading…
+                    </td>
+                  </tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td className="px-3 py-6" colSpan={6}><EmptyState title="No students" subtitle="Try adjusting filters or add a new student." /></td></tr>
+                  <tr>
+                    <td className="px-3 py-6" colSpan={6}>
+                      <EmptyState title="No students" subtitle="Try adjusting filters or add a new student." />
+                    </td>
+                  </tr>
                 ) : (
-                  filtered.map(s => (
+                  filtered.map((s) => (
                     <StudentRow
                       key={s._id}
                       s={s}
-                      onEdit={(row) => { setEditRow(row); setEditOpen(true); }}
+                      onEdit={(row) => {
+                        setEditRow(row);
+                        setEditOpen(true);
+                      }}
                       onDelete={handleDelete}
                     />
                   ))
@@ -125,12 +189,22 @@ export default function StudentsPage() {
       </Modal>
 
       {/* Edit */}
-      <Modal open={editOpen} title="Edit Student" onClose={() => { setEditOpen(false); setEditRow(null); }}>
+      <Modal
+        open={editOpen}
+        title="Edit Student"
+        onClose={() => {
+          setEditOpen(false);
+          setEditRow(null);
+        }}
+      >
         <StudentForm
           mode="edit"
-          initial={editRow ? { ...editRow, branch: editRow.branch as "" | "CSE" | "ISE" | "ECE" | undefined } : undefined}
+          initial={editRow ? { ...editRow, branch: (editRow.branch as "" | "CSE" | "ISE" | "ECE") } : undefined}
           onSubmit={handleUpdate}
-          onCancel={() => { setEditOpen(false); setEditRow(null); }}
+          onCancel={() => {
+            setEditOpen(false);
+            setEditRow(null);
+          }}
         />
       </Modal>
     </div>

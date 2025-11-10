@@ -8,6 +8,7 @@ import ForgotPasswordPage from "./pages/auth/ForgotPassword";
 import VerifyOtpPage from "./pages/auth/VerifyOtp";
 import ResetPasswordPage from "./pages/auth/ResetPassword";
 import AdminDashboard from "./pages/admin/Dashboard";
+import StudentsPage from "./pages/admin/StudentsPage";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/auth/:role/verify-otp" element={<VerifyOtpPage />} />
         <Route path="/auth/:role/reset" element={<ResetPasswordPage />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/students" element={<StudentsPage />} />
       </Routes>
     </BrowserRouter>
   );
