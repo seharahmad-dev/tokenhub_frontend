@@ -23,6 +23,95 @@ const getApiBase = (role: "Admin" | "Student" | "Faculty" | "HOD" | "Club") => {
   }
 };
 
+/**
+ * ======= In-file axios client (automatically attaches access token + auto-refresh) =======
+ *
+ * - Uses sessionStorage.getItem("accessToken") as the source of truth for access token.
+ * - When a 401 is encountered, it calls /admin/refresh (browser will send refresh cookie).
+ * - If refresh succeeds, it stores the new access token and retries the failed request.
+ * - Concurrency-safe: only one refresh request runs at a time; other requests wait.
+ */
+
+const API_BASE = ""; // leave empty since you pass full URLs via getApiBase(...)
+
+const apiClient = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true, // ensures refresh cookie is sent
+});
+
+const getAccessToken = () => sessionStorage.getItem("accessToken");
+const setAccessToken = (token: string | null) => {
+  if (token) sessionStorage.setItem("accessToken", token);
+  else sessionStorage.removeItem("accessToken");
+};
+
+// Request interceptor: attach access token
+apiClient.interceptors.request.use((config) => {
+  const token = getAccessToken();
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Response interceptor: handle 401 by refreshing and retrying
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+async function doRefresh(): Promise<string | null> {
+  try {
+    // Use plain axios to avoid going through apiClient interceptors again
+    const res = await axios.post(`${getApiBase("Admin")}/admin/refresh`, {}, { withCredentials: true });
+    const newToken = res.data?.token;
+    if (newToken) setAccessToken(newToken);
+    return newToken ?? null;
+  } catch (err) {
+    // refresh failed; clear token
+    setAccessToken(null);
+    return null;
+  }
+}
+
+apiClient.interceptors.response.use(
+  (resp) => resp,
+  async (error) => {
+    const originalRequest = (error && error.config) ? error.config : null;
+
+    if (!originalRequest) return Promise.reject(error);
+
+    // Only handle 401 errors
+    const status = error.response?.status;
+    if (status !== 401) return Promise.reject(error);
+
+    // Avoid retry loops
+    if (originalRequest._retry) return Promise.reject(error);
+    originalRequest._retry = true;
+
+    // start refresh if not already started
+    if (!isRefreshing) {
+      isRefreshing = true;
+      refreshPromise = doRefresh().finally(() => {
+        isRefreshing = false;
+        refreshPromise = null;
+      });
+    }
+
+    const newToken = await refreshPromise;
+
+    if (newToken) {
+      // set header and retry original request
+      originalRequest.headers = originalRequest.headers ?? {};
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      return apiClient(originalRequest);
+    }
+
+    // refresh failed — propagate original error
+    return Promise.reject(error);
+  }
+);
+/** ========================================================================================== */
+
 export default function StudentsPage() {
   const [items, setItems] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,9 +126,7 @@ export default function StudentsPage() {
   async function fetchAll() {
     setLoading(true);
     try {
-      const res = await axios.get(`${getApiBase("Student")}/student/all`, {
-        withCredentials: true,
-      });
+      const res = await apiClient.get(`${getApiBase("Student")}/student/all`);
       // keep compatibility with existing api.get usage
       setItems(res?.data?.data ?? res?.data ?? []);
     } catch (err) {
@@ -68,9 +155,8 @@ export default function StudentsPage() {
   // Create
   const handleCreate = async (p: StudentPayload) => {
     try {
-      await axios.post(`${getApiBase("Student")}/student/register`, p, {
+      await apiClient.post(`${getApiBase("Student")}/student/register`, p, {
         headers: { "Content-Type": "application/json" },
-        withCredentials: true, // keep cookie auth
       });
       setCreateOpen(false);
       fetchAll();
@@ -84,7 +170,7 @@ export default function StudentsPage() {
   const handleUpdate = async (p: StudentPayload) => {
     if (!editRow) return;
     try {
-      await axios.patch(
+      await apiClient.patch(
         `${getApiBase("Student")}/student/${editRow._id}`,
         {
           firstName: p.firstName,
@@ -97,7 +183,6 @@ export default function StudentsPage() {
         },
         {
           headers: { "Content-Type": "application/json" },
-          withCredentials: true,
         }
       );
       setEditOpen(false);
@@ -113,9 +198,7 @@ export default function StudentsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this student?")) return;
     try {
-      await axios.delete(`${getApiBase("Student")}/student/${id}`, {
-        withCredentials: true,
-      });
+      await apiClient.delete(`${getApiBase("Student")}/student/${id}`);
       fetchAll();
     } catch (err) {
       console.error("Delete student failed", err);
@@ -125,7 +208,7 @@ export default function StudentsPage() {
 
   return (
     <div className="container 2xl:px-0 px-4">
-    <AdminNavbar />
+      <AdminNavbar />
       <div className="mx-auto max-w-[1280px] py-8">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold">Students</h1>
