@@ -128,7 +128,7 @@ export default function StudentsPage() {
       <Modal open={editOpen} title="Edit Student" onClose={() => { setEditOpen(false); setEditRow(null); }}>
         <StudentForm
           mode="edit"
-          initial={editRow ?? undefined}
+          initial={editRow ? { ...editRow, branch: editRow.branch as "" | "CSE" | "ISE" | "ECE" | undefined } : undefined}
           onSubmit={handleUpdate}
           onCancel={() => { setEditOpen(false); setEditRow(null); }}
         />
