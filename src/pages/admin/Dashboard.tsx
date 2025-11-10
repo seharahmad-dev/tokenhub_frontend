@@ -8,10 +8,10 @@ type Branch = "CSE" | "ISE" | "ECE" | string;
 
 type Student = { _id: string; name: string; email: string; branch: Branch };
 type Faculty = { _id: string; name: string; collegeEmail: string; branch: Branch };
-type Hod = { _id: string; name: string; email: string; branch: Branch };
+type Hod = { _id: string; firstName: string; lastName: string; email: string; branch: Branch };
 type Club = {
   _id: string;
-  name: string;
+  clubName: string;
   head?: { name?: string; email?: string };
   presidentName?: string;
 };
@@ -145,7 +145,7 @@ export default function AdminDashboard() {
                       {hods.map((h) => (
                         <tr key={h._id} className="border-b last:border-none">
                           <td className="py-2 pr-4">{h.branch || "—"}</td>
-                          <td className="py-2 pr-4">{h.name || "—"}</td>
+                          <td className="py-2 pr-4">{h.firstName + " " + h.lastName|| "—"}</td>
                           <td className="py-2 pr-4">{h.email || "—"}</td>
                         </tr>
                       ))}
@@ -169,18 +169,15 @@ export default function AdminDashboard() {
                       <tr className="text-left border-b">
                         <th className="py-2 pr-4">Club</th>
                         <th className="py-2 pr-4">President / Head</th>
-                        <th className="py-2 pr-4">Email</th>
                       </tr>
                     </thead>
                     <tbody>
                       {clubs.map((c) => {
                         const headName = c.head?.name ?? c.presidentName ?? "—";
-                        const headEmail = c.head?.email ?? "—";
                         return (
                           <tr key={c._id} className="border-b last:border-none">
-                            <td className="py-2 pr-4">{c.name}</td>
+                            <td className="py-2 pr-4">{c.clubName}</td>
                             <td className="py-2 pr-4">{headName}</td>
-                            <td className="py-2 pr-4">{headEmail}</td>
                           </tr>
                         );
                       })}
