@@ -9,7 +9,12 @@ type Branch = "CSE" | "ISE" | "ECE" | string;
 type Student = { _id: string; name: string; email: string; branch: Branch };
 type Faculty = { _id: string; name: string; email: string; branch: Branch };
 type Hod = { _id: string; name: string; email: string; branch: Branch };
-type Club = { _id: string; name: string; head?: { name?: string; email?: string }; presidentName?: string };
+type Club = {
+  _id: string;
+  name: string;
+  head?: { name?: string; email?: string };
+  presidentName?: string;
+};
 
 const STUDENT_API = import.meta.env.VITE_STUDENT_API as string;
 const FACULTY_API = import.meta.env.VITE_FACULTY_API as string;
@@ -40,14 +45,27 @@ export default function AdminDashboard() {
     let mounted = true;
     async function load() {
       try {
+        const token = sessionStorage.getItem("accessToken");
+
+        const auth = {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        };
+
         setLoading(true);
         const [s, f, h, c] = await Promise.all([
-          axios.get(`${STUDENT_API}/all`, auth),
-          axios.get(`${FACULTY_API}/all`, auth),
-          axios.get(`${HOD_API}/all`, auth),       
-          axios.get(`${CLUB_API}/all`, auth),
+          axios.get(`${STUDENT_API}/student/all`, auth),
+          axios.get(`${FACULTY_API}/faculty/all`, auth),
+          axios.get(`${HOD_API}/hod/all`, auth),
+          axios.get(`${CLUB_API}/club/all`, auth),
         ]);
         if (!mounted) return;
+
+        console.log(s);
+        console.log(f);
+        console.log(h);
+        console.log(c);
+
         setStudents(s.data?.data ?? s.data ?? []);
         setFaculty(f.data?.data ?? f.data ?? []);
         setHods(h.data?.data ?? h.data ?? []);
@@ -67,13 +85,13 @@ export default function AdminDashboard() {
 
   const studentByBranch = useMemo(() => {
     const map: Record<string, number> = {};
-    students.forEach(s => (map[s.branch] = (map[s.branch] ?? 0) + 1));
+    students.forEach((s) => (map[s.branch] = (map[s.branch] ?? 0) + 1));
     return map;
   }, [students]);
 
   const facultyByBranch = useMemo(() => {
     const map: Record<string, number> = {};
-    faculty.forEach(f => (map[f.branch] = (map[f.branch] ?? 0) + 1));
+    faculty.forEach((f) => (map[f.branch] = (map[f.branch] ?? 0) + 1));
     return map;
   }, [faculty]);
 
@@ -83,9 +101,13 @@ export default function AdminDashboard() {
       <main className="container 2xl:px-0 px-4">
         <div className="max-w-[1280px] mx-auto py-8 space-y-8">
           {loading ? (
-            <div className="rounded-xl border bg-white p-8 text-center">Loading…</div>
+            <div className="rounded-xl border bg-white p-8 text-center">
+              Loading…
+            </div>
           ) : err ? (
-            <div className="rounded-xl border bg-white p-4 text-rose-600">{err}</div>
+            <div className="rounded-xl border bg-white p-4 text-rose-600">
+              {err}
+            </div>
           ) : (
             <>
               {/* Top KPIs */}
@@ -132,7 +154,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {hods.map(h => (
+                      {hods.map((h) => (
                         <tr key={h._id} className="border-b last:border-none">
                           <td className="py-2 pr-4">{h.branch || "—"}</td>
                           <td className="py-2 pr-4">{h.name || "—"}</td>
@@ -140,7 +162,11 @@ export default function AdminDashboard() {
                         </tr>
                       ))}
                       {hods.length === 0 && (
-                        <tr><td className="py-2 text-slate-500" colSpan={3}>No HOD data.</td></tr>
+                        <tr>
+                          <td className="py-2 text-slate-500" colSpan={3}>
+                            No HOD data.
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
@@ -159,7 +185,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clubs.map(c => {
+                      {clubs.map((c) => {
                         const headName = c.head?.name ?? c.presidentName ?? "—";
                         const headEmail = c.head?.email ?? "—";
                         return (
@@ -171,7 +197,11 @@ export default function AdminDashboard() {
                         );
                       })}
                       {clubs.length === 0 && (
-                        <tr><td className="py-2 text-slate-500" colSpan={3}>No club data.</td></tr>
+                        <tr>
+                          <td className="py-2 text-slate-500" colSpan={3}>
+                            No club data.
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
