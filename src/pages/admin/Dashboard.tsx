@@ -7,7 +7,7 @@ import axios from "axios";
 type Branch = "CSE" | "ISE" | "ECE" | string;
 
 type Student = { _id: string; name: string; email: string; branch: Branch };
-type Faculty = { _id: string; name: string; email: string; branch: Branch };
+type Faculty = { _id: string; name: string; collegeEmail: string; branch: Branch };
 type Hod = { _id: string; name: string; email: string; branch: Branch };
 type Club = {
   _id: string;
@@ -20,16 +20,6 @@ const STUDENT_API = import.meta.env.VITE_STUDENT_API as string;
 const FACULTY_API = import.meta.env.VITE_FACULTY_API as string;
 const HOD_API = import.meta.env.VITE_HOD_API as string;
 const CLUB_API = import.meta.env.VITE_CLUB_API as string;
-
-function useAuthHeaders() {
-  const token = localStorage.getItem("token");
-  return useMemo(
-    () => ({
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    }),
-    [token]
-  );
-}
 
 export default function AdminDashboard() {
   const [students, setStudents] = useState<Student[]>([]);

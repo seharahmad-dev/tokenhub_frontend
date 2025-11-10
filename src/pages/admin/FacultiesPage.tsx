@@ -29,12 +29,22 @@ export default function FacultiesPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editRow, setEditRow] = useState<Faculty | null>(null);
 
+  const API_BASE = getApiBase("Faculty");
+  const accessToken = sessionStorage.getItem("accessToken");
+
+  /** Helper to include token + cookies in each request */
+  const axiosConfig = {
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    withCredentials: true,
+  };
+
   async function fetchAll() {
     setLoading(true);
     try {
-      const res = await axios.get(`${getApiBase("Faculty")}/faculty/all`, {
-        withCredentials: true,
-      });
+      const res = await axios.get(`${API_BASE}/faculty/all`, axiosConfig);
       setItems(res?.data?.data ?? res?.data ?? []);
     } catch (err) {
       console.error("Failed to fetch faculty", err);
@@ -44,12 +54,14 @@ export default function FacultiesPage() {
     }
   }
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    fetchAll();
+  }, []);
 
   const filtered = useMemo(() => {
     const norm = (s: string) => s.toLowerCase();
     return items.filter((f) => {
-      const hit = [f.firstName, f.lastName, f.email, f.designation].some((v) =>
+      const hit = [f.firstName, f.lastName, f.collegeEmail, f.designation].some((v) =>
         norm(String(v ?? "")).includes(norm(q))
       );
       const okBranch = branch ? f.branch === branch : true;
@@ -60,10 +72,7 @@ export default function FacultiesPage() {
   // Create
   const handleCreate = async (p: FacultyPayload) => {
     try {
-      await axios.post(`${getApiBase("Faculty")}/faculty/register`, p, {
-        headers: { "Content-Type": "application/json" },
-        withCredentials: true,
-      });
+      await axios.post(`${API_BASE}/faculty/register`, p, axiosConfig);
       setCreateOpen(false);
       fetchAll();
     } catch (err) {
@@ -77,18 +86,14 @@ export default function FacultiesPage() {
     if (!editRow) return;
     try {
       await axios.patch(
-        `${getApiBase("Faculty")}/faculty/${editRow._id}`,
+        `${API_BASE}/faculty/${editRow._id}`,
         {
           firstName: p.firstName,
           lastName: p.lastName,
           branch: p.branch,
           designation: p.designation,
-          // email update is not in controller signature, so we won’t send it unless needed
         },
-        {
-          headers: { "Content-Type": "application/json" },
-          withCredentials: true,
-        }
+        axiosConfig
       );
       setEditOpen(false);
       setEditRow(null);
@@ -103,9 +108,7 @@ export default function FacultiesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this faculty?")) return;
     try {
-      await axios.delete(`${getApiBase("Faculty")}/faculty/${id}`, {
-        withCredentials: true,
-      });
+      await axios.delete(`${API_BASE}/faculty/${id}`, axiosConfig);
       fetchAll();
     } catch (err) {
       console.error("Delete faculty failed", err);
@@ -144,7 +147,9 @@ export default function FacultiesPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td className="px-3 py-8" colSpan={5}>Loading…</td></tr>
+                  <tr>
+                    <td className="px-3 py-8" colSpan={5}>Loading…</td>
+                  </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td className="px-3 py-6" colSpan={5}>
@@ -156,7 +161,10 @@ export default function FacultiesPage() {
                     <FacultyRow
                       key={f._id}
                       f={f}
-                      onEdit={(row) => { setEditRow(row); setEditOpen(true); }}
+                      onEdit={(row) => {
+                        setEditRow(row);
+                        setEditOpen(true);
+                      }}
                       onDelete={handleDelete}
                     />
                   ))
@@ -176,7 +184,10 @@ export default function FacultiesPage() {
       <Modal
         open={editOpen}
         title="Edit Faculty"
-        onClose={() => { setEditOpen(false); setEditRow(null); }}
+        onClose={() => {
+          setEditOpen(false);
+          setEditRow(null);
+        }}
       >
         <FacultyForm
           mode="edit"
@@ -185,15 +196,20 @@ export default function FacultiesPage() {
               ? {
                   firstName: editRow.firstName,
                   lastName: editRow.lastName,
-                  email: editRow.email,
-                  branch: (["CSE","ISE","ECE"].includes(editRow.branch) ? (editRow.branch as "CSE"|"ISE"|"ECE") : "") as ""|"CSE"|"ISE"|"ECE",
+                  collegeEmail: editRow.collegeEmail,
+                  branch: (["CSE", "ISE", "ECE"].includes(editRow.branch)
+                    ? (editRow.branch as "CSE" | "ISE" | "ECE")
+                    : "") as "" | "CSE" | "ISE" | "ECE",
                   designation: editRow.designation ?? "",
-                  password: "" // not editable here; keep empty
+                  password: "", // not editable here
                 }
               : undefined
           }
           onSubmit={handleUpdate}
-          onCancel={() => { setEditOpen(false); setEditRow(null); }}
+          onCancel={() => {
+            setEditOpen(false);
+            setEditRow(null);
+          }}
         />
       </Modal>
     </div>

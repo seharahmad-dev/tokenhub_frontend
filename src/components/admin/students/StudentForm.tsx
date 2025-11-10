@@ -7,7 +7,7 @@ export type StudentPayload = {
   lastName: string;
   usn: string;
   branch: "CSE" | "ISE" | "ECE" | "";
-  semester: number | "";
+  semester: string; // now always a string
   email: string;
   personalEmail?: string;
   password?: string; // only for create
@@ -52,10 +52,7 @@ export default function StudentForm({
     <form
       onSubmit={e => {
         e.preventDefault();
-        if (valid) onSubmit({
-          ...f,
-          semester: Number(f.semester)
-        });
+        if (valid) onSubmit(f); // no conversion to number
       }}
       className="grid grid-cols-1 gap-4 sm:grid-cols-2"
     >
@@ -66,14 +63,22 @@ export default function StudentForm({
         label="Branch"
         value={f.branch}
         onChange={v => set("branch", v)}
-        options={[{label:"CSE",value:"CSE"},{label:"ISE",value:"ISE"},{label:"ECE",value:"ECE"}]}
+        options={[
+          { label: "CSE", value: "CSE" },
+          { label: "ISE", value: "ISE" },
+          { label: "ECE", value: "ECE" }
+        ]}
         placeholder="Choose branch"
       />
-      <TextInput label="Semester" type="number" min={1} max={8}
-                 value={f.semester} onChange={e => set("semester", e.target.value)} />
+      <TextInput
+        label="Semester"
+        type="text" // changed from number
+        value={f.semester}
+        onChange={e => set("semester", e.target.value)}
+      />
       <TextInput label="Institute Email" type="email" value={f.email} onChange={e => set("email", e.target.value)} />
       <TextInput label="Personal Email (optional)" type="email"
-                 value={f.personalEmail ?? ""} onChange={e => set("personalEmail", e.target.value)} />
+        value={f.personalEmail ?? ""} onChange={e => set("personalEmail", e.target.value)} />
       {mode === "create" ? (
         <TextInput label="Password" type="password" value={f.password ?? ""} onChange={e => set("password", e.target.value)} />
       ) : null}

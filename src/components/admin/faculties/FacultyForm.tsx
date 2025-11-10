@@ -5,7 +5,7 @@ export type Branch = "" | "CSE" | "ISE" | "ECE";
 export type FacultyPayload = {
   firstName: string;
   lastName: string;
-  email: string;
+  collegeEmail: string;
   branch: Branch;
   designation: string;
   /** only used on create; backend requires password on register */
@@ -23,7 +23,7 @@ type Props = {
 export default function FacultyForm({ mode, initial, onSubmit, onCancel, busy }: Props) {
   const [firstName, setFirstName] = useState(initial?.firstName ?? "");
   const [lastName, setLastName] = useState(initial?.lastName ?? "");
-  const [email, setEmail] = useState(initial?.email ?? "");
+  const [email, setEmail] = useState(initial?.collegeEmail ?? "");
   const [branch, setBranch] = useState<Branch>(initial?.branch ?? "");
   const [designation, setDesignation] = useState(initial?.designation ?? "");
   const [password, setPassword] = useState(initial?.password ?? "");
@@ -44,7 +44,7 @@ export default function FacultyForm({ mode, initial, onSubmit, onCancel, busy }:
     const payload: FacultyPayload = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: (creating ? email : initial?.email ?? email).trim(),
+      collegeEmail: (creating ? email : initial?.collegeEmail ?? email).trim(),
       branch,
       designation: designation.trim(),
       ...(creating ? { password: password } : {}),

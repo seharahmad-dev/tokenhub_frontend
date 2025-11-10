@@ -3,8 +3,12 @@ import axios from "axios";
 import Modal from "../../components/common/Modal";
 import EmptyState from "../../components/common/EmptyState";
 import StudentsToolbar from "../../components/admin/students/StudentsToolbar";
-import StudentForm, { StudentPayload } from "../../components/admin/students/StudentForm";
-import StudentRow, { Student } from "../../components/admin/students/StudentRow";
+import StudentForm, {
+  StudentPayload,
+} from "../../components/admin/students/StudentForm";
+import StudentRow, {
+  Student,
+} from "../../components/admin/students/StudentRow";
 import AdminNavbar from "../../components/AdminNavbar";
 
 /** choose API base based on role (Admin page -> Admin API) */
@@ -62,7 +66,11 @@ let refreshPromise: Promise<string | null> | null = null;
 async function doRefresh(): Promise<string | null> {
   try {
     // Use plain axios to avoid going through apiClient interceptors again
-    const res = await axios.post(`${getApiBase("Admin")}/admin/refresh`, {}, { withCredentials: true });
+    const res = await axios.post(
+      `${getApiBase("Admin")}/admin/refresh`,
+      {},
+      { withCredentials: true }
+    );
     const newToken = res.data?.token;
     if (newToken) setAccessToken(newToken);
     return newToken ?? null;
@@ -76,7 +84,7 @@ async function doRefresh(): Promise<string | null> {
 apiClient.interceptors.response.use(
   (resp) => resp,
   async (error) => {
-    const originalRequest = (error && error.config) ? error.config : null;
+    const originalRequest = error && error.config ? error.config : null;
 
     if (!originalRequest) return Promise.reject(error);
 
@@ -212,7 +220,9 @@ export default function StudentsPage() {
       <div className="mx-auto max-w-[1280px] py-8">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold">Students</h1>
-          <p className="text-slate-600">Add, update, remove and search students.</p>
+          <p className="text-slate-600">
+            Add, update, remove and search students.
+          </p>
         </header>
 
         <StudentsToolbar
@@ -246,7 +256,10 @@ export default function StudentsPage() {
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td className="px-3 py-6" colSpan={6}>
-                      <EmptyState title="No students" subtitle="Try adjusting filters or add a new student." />
+                      <EmptyState
+                        title="No students"
+                        subtitle="Try adjusting filters or add a new student."
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -269,8 +282,16 @@ export default function StudentsPage() {
       </div>
 
       {/* Create */}
-      <Modal open={createOpen} title="Add Student" onClose={() => setCreateOpen(false)}>
-        <StudentForm mode="create" onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} />
+      <Modal
+        open={createOpen}
+        title="Add Student"
+        onClose={() => setCreateOpen(false)}
+      >
+        <StudentForm
+          mode="create"
+          onSubmit={handleCreate}
+          onCancel={() => setCreateOpen(false)}
+        />
       </Modal>
 
       {/* Edit */}
@@ -284,7 +305,15 @@ export default function StudentsPage() {
       >
         <StudentForm
           mode="edit"
-          initial={editRow ? { ...editRow, branch: (editRow.branch as "" | "CSE" | "ISE" | "ECE") } : undefined}
+          initial={
+            editRow
+              ? {
+                  ...editRow,
+                  branch: editRow.branch as "" | "CSE" | "ISE" | "ECE",
+                  semester: String(editRow.semester),
+                }
+              : undefined
+          }
           onSubmit={handleUpdate}
           onCancel={() => {
             setEditOpen(false);
