@@ -96,7 +96,7 @@ export default function RoleLoginForm({
         placeholder="••••••••"
       />
       <div className="mt-2 text-right">
-        <a href={`/forgot-password/${role.toLowerCase()}`} className="text-sm text-blue-600 hover:underline">
+        <a href={`/auth/${role.toLowerCase()}/forgot`} className="text-sm text-blue-600 hover:underline">
           Forgot password?
         </a>
       </div>

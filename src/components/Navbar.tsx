@@ -14,7 +14,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/70 backdrop-blur">
       <div className="container 2xl:px-0 px-4 max-w-[1200px] m-auto">
         <div className="max-w-[1280px] mx-auto flex items-center justify-between h-16">
-          <a href="#" className="inline-flex items-center gap-2 font-semibold">
+          <a href="/" className="inline-flex items-center gap-2 font-semibold">
             <span className="text-slate-900">Token<span className="text-blue-600">HUB</span></span>
             
           </a>
