@@ -5,7 +5,7 @@ export default function AdminNavbar() {
     () => [
       { label: "Dashboard", href: "/admin" },
       { label: "Students", href: "/admin/students" },
-      { label: "Faculty", href: "/admin/faculty" },
+      { label: "Faculty", href: "/admin/faculties" },
       { label: "HOD", href: "/admin/hod" },
       { label: "Clubs", href: "/admin/clubs" },
     ],
