@@ -44,7 +44,7 @@ export default function AdminDashboard() {
         const [s, f, h, c] = await Promise.all([
           axios.get(`${STUDENT_API}/all`, auth),
           axios.get(`${FACULTY_API}/all`, auth),
-          axios.get(`${HOD_API}/all`, auth),       // your route protects with Admin; token required
+          axios.get(`${HOD_API}/all`, auth),       
           axios.get(`${CLUB_API}/all`, auth),
         ]);
         if (!mounted) return;
