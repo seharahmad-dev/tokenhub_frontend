@@ -5,6 +5,7 @@ import EmptyState from "../../components/common/EmptyState";
 import StudentsToolbar from "../../components/admin/students/StudentsToolbar";
 import StudentForm, { StudentPayload } from "../../components/admin/students/StudentForm";
 import StudentRow, { Student } from "../../components/admin/students/StudentRow";
+import AdminNavbar from "../../components/AdminNavbar";
 
 /** choose API base based on role (Admin page -> Admin API) */
 const getApiBase = (role: "Admin" | "Student" | "Faculty" | "HOD" | "Club") => {
@@ -124,6 +125,7 @@ export default function StudentsPage() {
 
   return (
     <div className="container 2xl:px-0 px-4">
+    <AdminNavbar />
       <div className="mx-auto max-w-[1280px] py-8">
         <header className="mb-6">
           <h1 className="text-2xl font-semibold">Students</h1>
