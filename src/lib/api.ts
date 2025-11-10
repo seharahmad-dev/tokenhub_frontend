@@ -1,36 +1,52 @@
+// api.ts
+import axios, { AxiosError } from "axios";
+
+// Define role types
 export type Role = "student" | "faculty" | "hod" | "admin";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? ""; // e.g. "https://api.yourapp.com"
+// Base URL from .env (example: VITE_API_BASE="http://localhost:5000")
+const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
-function roleBase(role: Role) {
-  // keep your backend route scheme here:
-  // /student/forgot-password, /faculty/verify-otp, ...
-  return `/${role}`;
-}
+// Axios instance
+const apiClient = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true, // ✅ required for refresh token cookie
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
+// Generic POST helper
 async function postJSON<T>(
   url: string,
   body: Record<string, unknown>
 ): Promise<T> {
-  const res = await fetch(API_BASE + url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(
-      (data?.message as string) || "Something went wrong. Please try again."
-    );
+  try {
+    const res = await apiClient.post<T>(url, body);
+    return res.data;
+  } catch (err) {
+    const axiosErr = err as AxiosError<any>;
+    // Extract server error message if available
+    const message =
+      axiosErr.response?.data?.message ||
+      axiosErr.message ||
+      "Something went wrong. Please try again.";
+    throw new Error(message);
   }
-  return data as T;
 }
 
+// Helper to construct routes based on role
+function roleBase(role: Role) {
+  // e.g. /student, /faculty, /hod, /admin
+  return `/${role}`;
+}
+
+// API object
 export const api = {
   forgotPassword: <T>(role: Role, email: string) =>
     postJSON<T>(`${roleBase(role)}/forgot-password`, { email }),
 
-  verifyOtp:   <T>(role: Role, email: string, otp: string) =>
+  verifyOtp: <T>(role: Role, email: string, otp: string) =>
     postJSON<T>(`${roleBase(role)}/verify-otp`, { email, otp }),
 
   resetPassword: <T>(
@@ -38,5 +54,10 @@ export const api = {
     email: string,
     otp: string,
     newPassword: string
-  ) => postJSON<T>(`${roleBase(role)}/reset-password`, { email, otp, newPassword }),
+  ) =>
+    postJSON<T>(`${roleBase(role)}/reset-password`, {
+      email,
+      otp,
+      newPassword,
+    }),
 };

@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
 import PasswordCriteria from "./PasswordCriteria";
 
+import axios from "axios";
+
 type Role = "Student" | "Faculty" | "HOD" | "Admin";
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 export default function RoleLoginForm({
   role,
   emailSuffix = "@bmsce.ac.in",
-  submitPath = "/api/auth/login" // base path; final POST -> `${submitPath}/${role.toLowerCase()}`
+  submitPath = "login" 
 }: {
   role: Role;
-  emailSuffix?: string; // shows as a trailing box like screenshot
+  emailSuffix?: string; 
   submitPath?: string;
 }) {
   const [emailLocal, setEmailLocal] = useState("");
@@ -21,30 +25,45 @@ export default function RoleLoginForm({
   const fullEmail = useMemo(() => `${emailLocal}${emailSuffix}`, [emailLocal, emailSuffix]);
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fullEmail);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setMessage(null);
+async function handleSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  setLoading(true);
+  setMessage(null);
 
-    try {
-      const res = await fetch(`${submitPath}/${role.toLowerCase()}`, {
-        method: "POST",
+  try {
+    const url = `${API_BASE}/${role.toLowerCase()}/${submitPath}`;
+    console.log(url);    
+    
+    const res = await axios.post(
+      url,
+      { email: fullEmail, password },
+      {
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: fullEmail, password })
-      });
+        withCredentials: true 
+      }
+    );
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Login failed");
+    console.log(res);
+    
+    const data = res.data;
 
-      // token & user expected as per backend
-      setMessage("Login successful");
-      // TODO: store token, route to dashboard
-    } catch (err: any) {
-      setMessage(err.message || "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+    const accessToken = data?.data?.[0]?.token;
+    const user = data?.data?.[1]?.user;
+
+    if (!accessToken) throw new Error("No access token received from server");
+
+    sessionStorage.setItem("accessToken", accessToken);
+    sessionStorage.setItem("user", JSON.stringify(user));
+
+    setMessage("Login successful ✅");
+
+  } catch (err: any) {
+    console.error(err);
+    setMessage(err.response?.data?.message || err.message || "Login failed");
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <form onSubmit={handleSubmit} className="w-full">
