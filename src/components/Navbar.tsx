@@ -3,7 +3,7 @@ import { useMemo } from "react";
 export default function Navbar() {
   const links = useMemo(
     () => [
-      { label: "Home", href: "#" },
+      { label: "Home", href: "/" },
       { label: "About", href: "#" },
       { label: "Contact", href: "#" },
     ],
