@@ -9,6 +9,7 @@ import TopEventsCarousel from "../../components/student/TopEventsCarousel";
 
 const DISCUSS_API = import.meta.env.VITE_DISCUSS_API as string;
 const EVENT_API = import.meta.env.VITE_EVENT_API as string;
+const CLUB_API = import.meta.env.VITE_CLUB_API as string;
 
 type AnyObj = Record<string, any>;
 
@@ -21,9 +22,20 @@ function asArray<T = any>(val: unknown): T[] {
   return [];
 }
 
+function mongoIdTime(id: unknown) {
+  if (typeof id === "string" && id.length >= 8) {
+    const ts = parseInt(id.substring(0, 8), 16);
+    if (!Number.isNaN(ts)) return ts * 1000;
+  }
+  return 0;
+}
+
 export default function Explore() {
   const [posts, setPosts] = useState<any[]>([]);
   const [topEvents, setTopEvents] = useState<any[]>([]);
+  const [hiringClubs, setHiringClubs] = useState<
+    { _id: string; clubName: string; description?: string; headName?: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -42,9 +54,10 @@ export default function Explore() {
           withCredentials: true,
         };
 
-        const [pRes, eRes] = await Promise.all([
+        const [pRes, eRes, cRes] = await Promise.all([
           axios.get(`${DISCUSS_API}/discuss/all`, auth),
           axios.get(`${EVENT_API}/event/all`, auth),
+          axios.get(`${CLUB_API}/club/all`, auth),
         ]);
 
         if (!mounted) return;
@@ -52,24 +65,49 @@ export default function Explore() {
         // Normalize to arrays defensively
         const rawPosts = asArray(pRes.data);
         const rawEvents = asArray(eRes.data);
+        const rawClubs = asArray(cRes.data);
 
-        // Sort posts by recency (createdAt desc; fallback to updatedAt/_id)
+        // Sort posts by recency (createdAt desc; fallback to updatedAt/_id time)
         const sortedPosts = [...rawPosts].sort((a, b) => {
           const aTime =
             new Date(a?.createdAt ?? a?.updatedAt ?? 0).getTime() ||
-            (typeof a?._id === "string"
-              ? new Date(parseInt(a._id.substring(0, 8), 16) * 1000).getTime()
-              : 0);
+            mongoIdTime(a?._id);
           const bTime =
             new Date(b?.createdAt ?? b?.updatedAt ?? 0).getTime() ||
-            (typeof b?._id === "string"
-              ? new Date(parseInt(b._id.substring(0, 8), 16) * 1000).getTime()
-              : 0);
+            mongoIdTime(b?._id);
           return bTime - aTime;
         });
 
         setPosts(sortedPosts);
-        setTopEvents(rawEvents.slice(0, 10)); // carousel will handle the fade UI
+        setTopEvents(rawEvents.slice(0, 10));
+
+        // Heuristic “hiring” detection + pick club head name
+        const hiring = rawClubs
+          .filter((cl: any) => {
+            const desc = (cl?.description || "") as string;
+            const isActive = (cl?.status || "active") === "active";
+            const hiringHint = /hiring|recruit|applications\s*open|apply/i.test(desc);
+            return isActive && hiringHint;
+          })
+          .map((cl: any) => {
+            const head =
+              Array.isArray(cl?.members) &&
+              cl.members.find(
+                (m: any) =>
+                  typeof m?.role === "string" &&
+                  ["club head", "clubHead", "Club Head"].includes(
+                    m.role.trim()
+                  )
+              );
+            return {
+              _id: cl?._id,
+              clubName: cl?.clubName,
+              description: cl?.description,
+              headName: head?.name,
+            };
+          });
+
+        setHiringClubs(hiring);
       } catch (e: any) {
         setErr(e?.response?.data?.message || "Failed to load explore page");
       } finally {
@@ -102,10 +140,9 @@ export default function Explore() {
             )}
           </div>
 
-          {/* RIGHT: SUGGESTED (RAG) + TOP EVENTS */}
+          {/* RIGHT: SUGGESTED (RAG) + TOP EVENTS + CLUBS HIRING */}
           <aside className="space-y-6 sticky top-20 h-fit">
             <SectionCard title="Suggested for You (RAG)">
-              {/* This component is your placeholder / RAG hook */}
               <SuggestedEvents />
             </SectionCard>
 
@@ -121,6 +158,40 @@ export default function Explore() {
               }
             >
               <TopEventsCarousel rows={Array.isArray(topEvents) ? topEvents : []} />
+            </SectionCard>
+
+            <SectionCard title="Clubs Hiring">
+              {hiringClubs.length === 0 ? (
+                <div className="text-sm text-slate-600">
+                  No hiring announcements right now. Check back later!
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {hiringClubs.map((c) => (
+                    <li key={c._id} className="rounded-lg border bg-white p-3">
+                      <div className="font-medium">{c.clubName}</div>
+                      {c.headName && (
+                        <div className="text-xs text-slate-600 mt-0.5">
+                          President: {c.headName}
+                        </div>
+                      )}
+                      {c.description && (
+                        <p className="text-sm text-slate-700 mt-2 line-clamp-3">
+                          {c.description}
+                        </p>
+                      )}
+                      <div className="mt-3">
+                        <a
+                          href={`/student/clubs?apply=${c._id}`}
+                          className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white"
+                        >
+                          Apply
+                        </a>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </SectionCard>
           </aside>
         </div>

@@ -16,13 +16,6 @@ export default function Events() {
   const [filter, setFilter] = useState<FilterKey>("upcoming");
 
   const token = useMemo(() => sessionStorage.getItem("accessToken") || "", []);
-  const me = useMemo(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem("user") || "null");
-    } catch {
-      return null;
-    }
-  }, []);
 
   // Placeholder sources for "my events"
   // If you later add a real participation API, populate this Set from it.
