@@ -15,6 +15,8 @@ import ClubsPage from "./pages/admin/ClubsPage";
 import EditProfilePage from "./pages/admin/EditProfilePage";
 import StudentDashboard from "./pages/student/Dashboard";
 import Explore from "./pages/student/Explore";
+import Events from "./pages/student/Events";
+import Clubs from "./pages/student/Clubs";
 
 export default function App() {
   return (
@@ -36,6 +38,8 @@ export default function App() {
         <Route path="/admin/profile" element={<EditProfilePage />} />
         <Route path="/student" element={<StudentDashboard />} />
         <Route path="/student/explore" element={<Explore />} />
+        <Route path="/student/events" element={<Events />} />
+        <Route path="/student/clubs" element={<Clubs />} />
       </Routes>
     </BrowserRouter>
   );
