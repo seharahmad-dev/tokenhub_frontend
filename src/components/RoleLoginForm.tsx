@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import PasswordCriteria from "./PasswordCriteria";
 
 import axios from "axios";
@@ -27,6 +27,20 @@ export default function RoleLoginForm({
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const token = sessionStorage.getItem("accessToken");
+    const raw = sessionStorage.getItem("user");
+    if (!token || !raw) return;
+    try {
+      const u = JSON.parse(raw);
+      if (u?.role?.toLowerCase?.() === role.toLowerCase()) {
+        // role matches; go to their landing page
+        navigate(`/${role.toLowerCase()}`, { replace: true });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [role, navigate]);
 
   const fullEmail = useMemo(
     () => `${emailLocal}${emailSuffix}`,
