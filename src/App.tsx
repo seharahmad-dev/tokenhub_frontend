@@ -12,6 +12,7 @@ import StudentsPage from "./pages/admin/StudentsPage";
 import FacultiesPage from "./pages/admin/FacultiesPage";
 import HodPage from "./pages/admin/HodPage";
 import ClubsPage from "./pages/admin/ClubsPage";
+import EditProfilePage from "./pages/admin/EditProfilePage";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/admin/faculties" element={<FacultiesPage />} />
         <Route path="/admin/hod" element={<HodPage />} />
         <Route path="/admin/clubs" element={<ClubsPage />} />
+        <Route path="/admin/profile" element={<EditProfilePage />} />
       </Routes>
     </BrowserRouter>
   );
