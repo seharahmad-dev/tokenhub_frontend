@@ -1,3 +1,4 @@
+// pages/admin/ClubsPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Modal from "../../components/common/Modal";
@@ -71,11 +72,73 @@ export default function ClubsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
 
+  /**
+   * fetchAll:
+   * - fetch clubs
+   * - fetch students (to resolve names when the club member contains only studentId)
+   * - compute a studentMap (id -> displayName)
+   * - inject member.displayName into each club member (prefer snapshot name/email, then populated object, then lookup)
+   */
   async function fetchAll() {
     setLoading(true);
     try {
-      const res = await apiClient.get(`${getApiBase("Club")}/club/all`);
-      setItems(res?.data?.data ?? res?.data ?? []);
+      const clubsPromise = apiClient.get(`${getApiBase("Club")}/club/all`);
+      const studentsPromise = apiClient.get(`${getApiBase("Student")}/student/all`);
+
+      // run in parallel
+      const [clubsRes, studentsRes] = await Promise.allSettled([clubsPromise, studentsPromise]);
+
+      const clubsData = clubsRes.status === "fulfilled" ? (clubsRes.value?.data?.data ?? clubsRes.value?.data ?? []) : [];
+      const studentsData = studentsRes.status === "fulfilled" ? (studentsRes.value?.data?.data ?? studentsRes.value?.data ?? []) : [];
+
+      // build student map: id -> "First Last" (or email/usn fallback)
+      const studentMap: Record<string, string> = {};
+      if (Array.isArray(studentsData)) {
+        for (const s of studentsData) {
+          const id = s._id ?? s.id;
+          if (!id) continue;
+          const name = `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || s.fullName || s.name || s.email || s.usn || "";
+          studentMap[id] = name;
+        }
+      }
+
+      // normalize clubs and inject displayName for members
+      const mappedClubs = (Array.isArray(clubsData) ? clubsData : []).map((c: any) => {
+        const members = Array.isArray(c.members) ? c.members.map((m: any) => {
+          // prefer snapshot name/email fields that you said you would store on the club member
+          let displayName = (m.name && String(m.name).trim()) ? m.name :
+                            (m.studentName && String(m.studentName).trim()) ? m.studentName :
+                            (m.email && String(m.email).trim()) ? m.email : "";
+
+          // if studentId is populated as an object (mongoose populate), try to extract name
+          if (!displayName && m.studentId && typeof m.studentId === "object") {
+            const sidObj = m.studentId;
+            displayName = `${sidObj.firstName ?? ""} ${sidObj.lastName ?? ""}`.trim() || sidObj.fullName || sidObj.email || sidObj.usn || "";
+          }
+
+          // if studentId is a string, lookup from studentMap
+          if (!displayName && m.studentId && typeof m.studentId === "string") {
+            displayName = studentMap[m.studentId] ?? "";
+          }
+
+          // as last resort fall back to the raw id string (so UI never shows [object Object] or empty)
+          if (!displayName) {
+            displayName = String(m.studentId ?? m._id ?? "Unknown");
+          }
+
+          return {
+            ...m,
+            displayName
+          };
+        }) : [];
+
+        return {
+          ...c,
+          members
+        };
+      });
+
+      setItems(mappedClubs);
     } catch (e) {
       console.error("Clubs fetch failed", e);
       setItems([]);
@@ -89,25 +152,54 @@ export default function ClubsPage() {
   const filtered = useMemo(() => {
     const norm = (s: string) => (s ?? "").toLowerCase();
     return items.filter(c => {
-      const head = c.members?.find(m => (m.role === "Club Head") || (m.role === "clubHead"));
+      const head = c.members?.find((m: any) => {
+        const role = (m.role ?? "").toString();
+        return role === "Club Head" || role === "clubHead" || role.toLowerCase() === "club head";
+      });
+      console.log(head);
+      
       const headName = head?.name || head?.studentName || "";
       return [c.clubName, headName].some(v => norm(String(v)).includes(norm(q)));
     });
   }, [items, q]);
 
   // Create club (Admin only)
-  const handleCreate = async (p: ClubCreatePayload) => {
-    try {
-      await apiClient.post(`${getApiBase("Club")}/club/register`, p, {
-        headers: { "Content-Type": "application/json" },
-      });
-      setCreateOpen(false);
-      fetchAll();
-    } catch (e) {
-      console.error("Create club failed", e);
+  // Replace your existing handleCreate with this
+const handleCreate = async (p: ClubCreatePayload) => {
+  try {
+    // ensure we have an access token — try sessionStorage first
+    let token = getAccessToken();
+
+    // if token missing, attempt refresh using your existing doRefresh()
+    if (!token) {
+      token = await doRefresh();
+      if (!token) {
+        // not authenticated — show message and stop
+        alert("Unable to authenticate. Please login again.");
+        return;
+      }
+    }
+
+    // attach explicit Authorization header as a safety-net (apiClient already does this via interceptor)
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+
+    await apiClient.post(`${getApiBase("Club")}/club/register`, p, { headers });
+    setCreateOpen(false);
+    fetchAll();
+  } catch (e) {
+    console.error("Create club failed", e);
+    // handle 401 specifically (in case interceptor/refresh didn't work)
+    if ((e as any)?.response?.status === 401) {
+      alert("Authentication error. Please login again.");
+    } else {
       alert("Failed to create club");
     }
-  };
+  }
+};
+
 
   // Delete club (Admin only)
   const handleDelete = async (id: string) => {
