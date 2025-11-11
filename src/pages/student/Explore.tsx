@@ -78,7 +78,22 @@ export default function Explore() {
           return bTime - aTime;
         });
 
-        setPosts(sortedPosts);
+        // Ensure counts exist so PostsFeed can display them reliably
+        const normalizedPosts = sortedPosts.map((p) => {
+          const likesArr = Array.isArray(p.likedBy)
+            ? p.likedBy
+            : Array.isArray(p.likes)
+            ? p.likes
+            : [];
+          const commentsArr = Array.isArray(p.comments) ? p.comments : [];
+          return {
+            ...p,
+            likesCount: likesArr.length,
+            commentsCount: commentsArr.length,
+          };
+        });
+
+        setPosts(normalizedPosts);
         setTopEvents(rawEvents.slice(0, 10));
 
         // Heuristic “hiring” detection + pick club head name
@@ -86,7 +101,9 @@ export default function Explore() {
           .filter((cl: any) => {
             const desc = (cl?.description || "") as string;
             const isActive = (cl?.status || "active") === "active";
-            const hiringHint = /hiring|recruit|applications\s*open|apply/i.test(desc);
+            const hiringHint = /hiring|recruit|applications\s*open|apply/i.test(
+              desc
+            );
             return isActive && hiringHint;
           })
           .map((cl: any) => {
@@ -130,11 +147,18 @@ export default function Explore() {
           {/* LEFT: POSTS FEED (recency) */}
           <div>
             {loading ? (
-              <div className="rounded-xl border bg-white p-6 text-center">Loading…</div>
+              <div className="rounded-xl border bg-white p-6 text-center">
+                Loading…
+              </div>
             ) : err ? (
-              <div className="rounded-xl border bg-white p-6 text-rose-600">{err}</div>
+              <div className="rounded-xl border bg-white p-6 text-rose-600">
+                {err}
+              </div>
             ) : posts.length === 0 ? (
-              <EmptyState title="No posts yet" subtitle="Be the first to start a discussion!" />
+              <EmptyState
+                title="No posts yet"
+                subtitle="Be the first to start a discussion!"
+              />
             ) : (
               <PostsFeed posts={posts} />
             )}
@@ -157,7 +181,9 @@ export default function Explore() {
                 </a>
               }
             >
-              <TopEventsCarousel rows={Array.isArray(topEvents) ? topEvents : []} />
+              <TopEventsCarousel
+                rows={Array.isArray(topEvents) ? topEvents : []}
+              />
             </SectionCard>
 
             <SectionCard title="Clubs Hiring">

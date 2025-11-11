@@ -79,7 +79,7 @@ export default function Discuss() {
       [...posts]
         .sort((a, b) => Number(b.likes ?? 0) - Number(a.likes ?? 0))
         .slice(0, 10)
-        .map((p) => ({ _id: p._id, title: p.title, likes: p.likes ?? 0, tags: p.tags ?? [] })),
+        .map((p) => ({ _id: p._id, title: p.title, likes: Number(p.likes ?? 0), tags: p.tags ?? [] })),
     [posts]
   );
 
