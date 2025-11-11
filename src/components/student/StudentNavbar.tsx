@@ -49,14 +49,13 @@ export default function StudentNavbar({
       setLoadingTokens(true);
       try {
         // if your backend is running on a different origin, replace with full base URL
-        const baseURL = import.meta.env.VITE_API_BASE_URL || "";
+        const baseURL = import.meta.env.VITE_TOKEN_API || "";
         const resp = await axios.get(
-          `${baseURL}/api/token/${student._id}/total`,
+          `${baseURL}/token/${student._id}/total`,
           { withCredentials: true }
         );
-
-        console.log(resp);
         
+        console.log(`${baseURL}/api/token/${student._id}/total`);
         
 
         const data = resp?.data?.data;
