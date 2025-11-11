@@ -17,6 +17,9 @@ import StudentDashboard from "./pages/student/Dashboard";
 import Explore from "./pages/student/Explore";
 import Events from "./pages/student/Events";
 import Clubs from "./pages/student/Clubs";
+import Discuss from "./pages/student/Discuss";
+import DiscussDetail from "./pages/student/DiscussDetail";
+import DiscussCreate from "./pages/student/DiscussCreate";
 
 export default function App() {
   return (
@@ -40,6 +43,9 @@ export default function App() {
         <Route path="/student/explore" element={<Explore />} />
         <Route path="/student/events" element={<Events />} />
         <Route path="/student/clubs" element={<Clubs />} />
+        <Route path="/student/discuss" element={<Discuss />} />
+        <Route path="/student/discuss/create" element={<DiscussCreate />} />
+        <Route path="/student/discuss/:id" element={<DiscussDetail />} />
       </Routes>
     </BrowserRouter>
   );
