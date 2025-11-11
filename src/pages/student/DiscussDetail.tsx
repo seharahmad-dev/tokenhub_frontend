@@ -13,7 +13,9 @@ type Comment = {
   _id: string;
   authorId: string;
   authorName?: string;
-  text: string;
+  authorEmail?: string;
+  text?: string;    // UI field (we normalize to this)
+  content?: string; // backend field
   createdAt?: string;
 };
 
@@ -24,11 +26,29 @@ type Post = {
   tags?: string[];
   authorId: string;
   authorName?: string;
-  likes?: string[]; // studentIds who liked
-  dislikes?: string[];
+
+  // Different possible backend shapes; we normalize these:
+  likes?: unknown;
+  dislikes?: unknown;
+  likedBy?: unknown;
+  dislikedBy?: unknown;
+
   createdAt?: string;
   comments?: Comment[];
 };
+
+function toIdArray(val: unknown): string[] {
+  if (Array.isArray(val)) {
+    return val.map((v) => (typeof v === "string" ? v : String((v as any)?._id ?? v)));
+  }
+  // handle mongoose docs or objects with length fields incorrectly sent
+  return [];
+}
+
+function displayName(firstName?: string, lastName?: string, email?: string) {
+  const n = [firstName, lastName].filter(Boolean).join(" ").trim();
+  return n || email || "Student";
+}
 
 export default function DiscussDetail() {
   const { id } = useParams<{ id: string }>();
@@ -55,9 +75,38 @@ export default function DiscussDetail() {
       setLoading(true);
       setErr(null);
       const res = await axios.get(`${DISCUSS_API}/discuss/${id}`, authCfg);
-      const data =
-        res?.data?.data ?? res?.data?.payload ?? res?.data?.post ?? res?.data;
-      setPost(data || null);
+      const data: Post =
+        (res?.data?.data as Post) ??
+        (res?.data?.payload as Post) ??
+        (res?.data?.post as Post) ??
+        (res?.data as Post);
+
+      if (!data) {
+        setPost(null);
+        return;
+      }
+
+      // Normalize reactions into array<string>
+      const likesArr = toIdArray((data as any).likes ?? (data as any).likedBy);
+      const dislikesArr = toIdArray(
+        (data as any).dislikes ?? (data as any).dislikedBy
+      );
+
+      // Normalize comments so UI can always use `text`
+      let normalizedComments: Comment[] | undefined = data.comments;
+      if (Array.isArray(data.comments)) {
+        normalizedComments = data.comments.map((c) => ({
+          ...c,
+          text: c.text ?? c.content ?? "",
+        }));
+      }
+
+      setPost({
+        ...data,
+        likes: likesArr,
+        dislikes: dislikesArr,
+        comments: normalizedComments,
+      });
     } catch (e: any) {
       setErr(e?.response?.data?.message || "Failed to load discussion");
     } finally {
@@ -71,27 +120,40 @@ export default function DiscussDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const hasLiked = !!(
-    student?._id && post?.likes && post.likes.includes(student._id)
-  );
-  const hasDisliked = !!(
-    student?._id && post?.dislikes && post.dislikes.includes(student._id)
-  );
+  const hasLiked =
+    !!student?._id &&
+    Array.isArray(post?.likes) &&
+    (post!.likes as string[]).includes(student._id);
+
+  const hasDisliked =
+    !!student?._id &&
+    Array.isArray(post?.dislikes) &&
+    (post!.dislikes as string[]).includes(student._id);
 
   async function reactToPost(kind: "like" | "dislike") {
     if (!student?._id || !post?._id) return;
     setBusy(true);
     try {
       const url = `${DISCUSS_API}/discuss/${post._id}/${kind}`;
-      await axios.post(url, { studentId: student._id }, authCfg);
+      // Backend expects userId (keep it simple & aligned with your controller)
+      await axios.post(
+        url,
+        {
+          userId: student._id,
+        },
+        authCfg
+      );
 
-      // Optimistic update
+      // Optimistic update: keep arrays as arrays of strings
       setPost((prev) => {
         if (!prev) return prev;
-        const likes = new Set(prev.likes ?? []);
-        const dislikes = new Set(prev.dislikes ?? []);
+        const likes = new Set<string>(
+          Array.isArray(prev.likes) ? (prev.likes as string[]) : []
+        );
+        const dislikes = new Set<string>(
+          Array.isArray(prev.dislikes) ? (prev.dislikes as string[]) : []
+        );
 
-        // toggle logic
         if (kind === "like") {
           if (likes.has(student._id!)) {
             likes.delete(student._id!);
@@ -108,10 +170,14 @@ export default function DiscussDetail() {
           }
         }
 
-        return { ...prev, likes: Array.from(likes), dislikes: Array.from(dislikes) };
+        return {
+          ...prev,
+          likes: Array.from(likes),
+          dislikes: Array.from(dislikes),
+        };
       });
-    } catch (e) {
-      // fall back to refetch on error
+    } catch {
+      // If something went wrong, re-sync with server
       fetchPost();
     } finally {
       setBusy(false);
@@ -125,29 +191,41 @@ export default function DiscussDetail() {
     setBusy(true);
     try {
       await axios.post(
-        `${DISCUSS_API}/discuss/${post._id}/comment`,
-        { studentId: student._id, text: comment.trim() },
+        `${DISCUSS_API}/discuss/${post._id}/comments`,
+        {
+          authorId: student._id,
+          authorName: displayName(
+            student.firstName,
+            student.lastName,
+            student.email
+          ),
+          authorEmail: student.email,
+          content: comment.trim(), // backend expects `content`
+        },
         authCfg
       );
+
       setComment("");
-      // Optimistic append; if backend returns the created comment,
-      // you could use that instead of this minimal shape.
+
+      // Optimistic append
       setPost((prev) => {
         if (!prev) return prev;
         const now = new Date().toISOString();
         const newC: Comment = {
           _id: Math.random().toString(36).slice(2),
           authorId: student._id!,
-          authorName:
-            (student.firstName ? `${student.firstName} ${student.lastName ?? ""}`.trim() : undefined) ||
-            student.email ||
-            "You",
+          authorName: displayName(
+            student.firstName,
+            student.lastName,
+            student.email
+          ),
+          authorEmail: student.email,
           text: comment.trim(),
           createdAt: now,
         };
         return { ...prev, comments: [newC, ...(prev.comments ?? [])] };
       });
-    } catch (e) {
+    } catch {
       await fetchPost();
     } finally {
       setBusy(false);
@@ -237,7 +315,10 @@ export default function DiscussDetail() {
                           : "bg-white text-slate-700"
                       }`}
                     >
-                      👍 <span className="ml-1">{post.likes?.length ?? 0}</span>
+                      👍{" "}
+                      <span className="ml-1">
+                        {Array.isArray(post.likes) ? post.likes.length : 0}
+                      </span>
                     </button>
                     <button
                       disabled={!student?._id || busy}
@@ -249,7 +330,9 @@ export default function DiscussDetail() {
                       }`}
                     >
                       👎{" "}
-                      <span className="ml-1">{post.dislikes?.length ?? 0}</span>
+                      <span className="ml-1">
+                        {Array.isArray(post.dislikes) ? post.dislikes.length : 0}
+                      </span>
                     </button>
                   </div>
                 </SectionCard>
@@ -293,23 +376,19 @@ export default function DiscussDetail() {
                   ) : (
                     <ul className="space-y-3">
                       {post.comments!.map((c) => (
-                        <li
-                          key={c._id}
-                          className="rounded-lg border bg-white p-3"
-                        >
+                        <li key={c._id} className="rounded-lg border bg-white p-3">
                           <div className="mb-1 text-xs text-slate-600">
                             <span className="font-medium">
                               {c.authorName || "Student"}
                             </span>{" "}
                             {c.createdAt && (
                               <>
-                                •{" "}
-                                {new Date(c.createdAt).toLocaleString()}
+                                • {new Date(c.createdAt).toLocaleString()}
                               </>
                             )}
                           </div>
                           <p className="text-sm whitespace-pre-wrap">
-                            {c.text}
+                            {c.text ?? ""}
                           </p>
                         </li>
                       ))}
@@ -342,8 +421,7 @@ export default function DiscussDetail() {
 
             <SectionCard title="Hot Questions">
               <p className="text-sm text-slate-600">
-                Placeholder — hook to an endpoint like{" "}
-                <code>/discuss/hot</code> (most liked).
+                Placeholder — hook to an endpoint like <code>/discuss/hot</code> (most liked).
               </p>
               <div className="mt-2 space-y-2">
                 <a

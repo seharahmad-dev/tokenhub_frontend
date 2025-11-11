@@ -2,8 +2,10 @@ import { useState } from "react";
 
 export type DiscussComment = {
   _id: string;
-  author?: string | { _id?: string; name?: string };
-  content: string;
+  author?: string | { _id?: string; name?: string; email?: string };
+  authorName?: string;
+  content?: string;   // backend field
+  text?: string;      // UI field
   createdAt?: string;
 };
 
@@ -18,15 +20,19 @@ export default function DiscussComments({
   return (
     <ul className="space-y-4">
       {comments.map((c) => {
-        const authorName =
+        const authorFromObj =
           typeof c.author === "string"
             ? c.author
-            : c.author?.name ?? "Anonymous";
+            : c.author?.name ?? c.authorName ?? "Anonymous";
+        const authorName = c.authorName ?? authorFromObj ?? "Anonymous";
         const when = c.createdAt ? new Date(c.createdAt).toLocaleString() : "";
+        const text = c.text ?? c.content ?? "";
         return (
           <li key={c._id} className="rounded-lg border bg-slate-50 p-3">
-            <div className="text-xs text-slate-600">{authorName} • {when}</div>
-            <p className="mt-1 text-sm">{c.content}</p>
+            <div className="text-xs text-slate-600">
+              {authorName} {when ? `• ${when}` : ""}
+            </div>
+            <p className="mt-1 text-sm whitespace-pre-wrap">{text}</p>
           </li>
         );
       })}
