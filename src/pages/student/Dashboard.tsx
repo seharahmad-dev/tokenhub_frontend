@@ -141,7 +141,7 @@ export default function StudentDashboard() {
         const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
         console.log("Hi");
 
-        const res = await axios.get(`${TOKEN_API}/leaderboard/all`, auth);
+        const res = await axios.get(`${TOKEN_API}/token/leaderboard/all`, auth);
 
         console.log(res);
         
