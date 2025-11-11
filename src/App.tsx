@@ -13,6 +13,8 @@ import FacultiesPage from "./pages/admin/FacultiesPage";
 import HodPage from "./pages/admin/HodPage";
 import ClubsPage from "./pages/admin/ClubsPage";
 import EditProfilePage from "./pages/admin/EditProfilePage";
+import StudentDashboard from "./pages/student/Dashboard";
+import Explore from "./pages/student/Explore";
 
 export default function App() {
   return (
@@ -32,6 +34,8 @@ export default function App() {
         <Route path="/admin/hod" element={<HodPage />} />
         <Route path="/admin/clubs" element={<ClubsPage />} />
         <Route path="/admin/profile" element={<EditProfilePage />} />
+        <Route path="/student" element={<StudentDashboard />} />
+        <Route path="/student/explore" element={<Explore />} />
       </Routes>
     </BrowserRouter>
   );
