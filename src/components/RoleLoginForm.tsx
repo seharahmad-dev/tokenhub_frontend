@@ -4,9 +4,9 @@ import PasswordCriteria from "./PasswordCriteria";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
-
 import { useAppDispatch } from "../app/hooks";
 import { setCredentials } from "../app/authSlice";
+import { setStudent } from "../app/studentSlice"; // <<-- ADDED
 
 type Role = "Student" | "Faculty" | "HOD" | "Admin";
 
@@ -106,23 +106,36 @@ export default function RoleLoginForm({
       }
 
       // Sanitize user (defensive)
-      let safeUser = null;
+      let safeUser: any = null;
       if (user && typeof user === "object") {
         safeUser = { ...user };
         delete safeUser.password;
         delete safeUser.refreshTokens;
+
+        // normalize id field: prefer _id but allow id
+        if (!safeUser._id && safeUser.id) {
+          safeUser._id = safeUser.id;
+          delete safeUser.id;
+        }
+
+        // ensure role exists on the safeUser (fallback to current selected role)
+        if (!safeUser.role) safeUser.role = role;
       }
 
       // persist
       sessionStorage.setItem("accessToken", accessToken);
       if (safeUser) sessionStorage.setItem("user", JSON.stringify(safeUser));
 
-      // update redux
+      // update redux (auth)
       dispatch(setCredentials({ user: safeUser, token: accessToken }));
 
+      // important: update student slice too when logging in as Student
+      if (role === "Student" && safeUser) {
+        dispatch(setStudent(safeUser));
+      }
+
+      // route to landing
       navigate(`/${role.toLowerCase()}`);
-
-
     } catch (err: any) {
       console.error(err);
       setMessage(err.response?.data?.message || err.message || "Login failed");

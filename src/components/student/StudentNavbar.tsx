@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import axios from "axios";
+import { useAppSelector } from "../../app/hooks";
+import { selectStudent } from "../../app/studentSlice";
 
 type NavItem = { label: string; href: string };
 const LINKS: NavItem[] = [
@@ -9,7 +12,6 @@ const LINKS: NavItem[] = [
   { label: "Quiz", href: "/student/quiz" },
   { label: "Leaderboard", href: "/student/leaderboard" },
   { label: "Store", href: "/student/store" },
-  // ❗ Removed Notification from here
 ];
 
 export default function StudentNavbar({
@@ -22,13 +24,58 @@ export default function StudentNavbar({
   const [open, setOpen] = useState(false);
   const dd = useRef<HTMLDivElement | null>(null);
 
+  const [totalTokens, setTotalTokens] = useState<number>(tokens);
+  const [availablePoints, setAvailablePoints] = useState<number>(points);
+  const [loadingTokens, setLoadingTokens] = useState(false);
+
+  const student = useAppSelector(selectStudent);
+
   useEffect(() => {
-    function onClick(e: MouseEvent) {
+    function handleClickOutside(e: MouseEvent) {
       if (dd.current && !dd.current.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, []);
+
+  // ✅ Fetch tokens as soon as navbar mounts or student becomes available
+  useEffect(() => {    
+    const fetchTokens = async () => {     
+      if (!student?._id) {
+        console.log("⏳ Waiting for student data...");
+        return;
+      }
+
+      setLoadingTokens(true);
+      try {
+        // if your backend is running on a different origin, replace with full base URL
+        const baseURL = import.meta.env.VITE_API_BASE_URL || "";
+        const resp = await axios.get(
+          `${baseURL}/api/token/${student._id}/total`,
+          { withCredentials: true }
+        );
+
+        console.log(resp);
+        
+        
+
+        const data = resp?.data?.data;
+        console.log("✅ Token data:", data);
+
+        if (data) {
+          setTotalTokens(data.totalTokens ?? 0);
+          setAvailablePoints(data.availableTokens ?? 0);
+        }
+      } catch (err: any) {
+        console.error("❌ Error fetching tokens:", err);
+      } finally {
+        setLoadingTokens(false);
+      }
+    };
+
+    // Always run once on mount, and whenever student id changes
+    fetchTokens();
+  }, [student?._id]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/70 backdrop-blur">
@@ -55,7 +102,6 @@ export default function StudentNavbar({
 
           {/* Right: notification + tokens + points + avatar */}
           <div className="flex items-center gap-3">
-
             {/* 🔔 Notification icon */}
             <a
               href="/student/notifications"
@@ -65,23 +111,27 @@ export default function StudentNavbar({
               <span>🔔</span>
             </a>
 
-            <a
-              href="/student/store"
+            {/* 🪙 Total Tokens */}
+            <div
+              className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white"
+              title="Total Tokens"
+            >
+              <span>🪙</span>
+              <span className="font-medium">
+                {loadingTokens ? "..." : totalTokens}
+              </span>
+            </div>
+
+            {/* 🏆 Available Tokens */}
+            <div
               className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white"
               title="Available Tokens"
             >
-              <span className="i">🪙</span>
-              <span className="font-medium">{tokens}</span>
-            </a>
-
-            <a
-              href="/student/leaderboard"
-              className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white"
-              title="Points (redeemed + available)"
-            >
-              <span className="i">🏆</span>
-              <span className="font-medium">{points}</span>
-            </a>
+              <span>🏆</span>
+              <span className="font-medium">
+                {loadingTokens ? "..." : availablePoints}
+              </span>
+            </div>
 
             {/* Avatar dropdown */}
             <div className="relative" ref={dd}>
