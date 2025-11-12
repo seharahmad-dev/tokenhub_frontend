@@ -64,14 +64,14 @@ export default function Events() {
 
   const filtered = useMemo(() => {
     const list = [...events].sort((a, b) => {
-      const da = new Date(a.schedule).getTime();
-      const db = new Date(b.schedule).getTime();
+      const da = new Date(a.schedule ?? 0).getTime();
+      const db = new Date(b.schedule ?? 0).getTime();
       // recent first overall
       return db - da;
     });
 
-    if (filter === "upcoming") return list.filter((e) => !isPast(e.schedule));
-    if (filter === "past") return list.filter((e) => isPast(e.schedule));
+    if (filter === "upcoming") return list.filter((e) => e.schedule && !isPast(e.schedule));
+    if (filter === "past") return list.filter((e) => e.schedule && isPast(e.schedule));
     // "mine": registered/participated placeholder
     return list.filter((e) => myEventIds.has(e._id));
   }, [events, filter]);
@@ -128,7 +128,7 @@ export default function Events() {
                   <EventCard
                     key={e._id}
                     e={e}
-                    participated={myEventIds.has(e._id) || isPast(e.schedule)}
+                    participated={myEventIds.has(e._id) || (e.schedule ? isPast(e.schedule) : false)}
                   />
                 ))}
 
