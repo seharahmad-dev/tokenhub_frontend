@@ -23,6 +23,9 @@ import DiscussCreate from "./pages/student/DiscussCreate";
 import LeaderboardPage from "./pages/student/Leaderboard";
 import ProfilePage from "./pages/student/ProfilePage";
 import ManageClubPage from "./components/student/ManageClubPage";
+import RegisterTeam from "./pages/student/RegisterTeam";
+import EventRegisterPage from "./pages/student/EventRegisterPage";
+import EventPaymentPage from "./pages/student/EventPaymentPage";
 
 export default function App() {
   return (
@@ -52,6 +55,9 @@ export default function App() {
         <Route path="/student/leaderboard" element={<LeaderboardPage />} />
         <Route path="/student/profile" element={<ProfilePage />} />
         <Route path="/student/manage-club" element={<ManageClubPage />} />
+        <Route path="/student/register-team" element={<RegisterTeam />} />
+        <Route path="/student/events/:id/register" element={<EventRegisterPage />} />
+<Route path="/student/events/:id/payment" element={<EventPaymentPage />} />
       </Routes>
     </BrowserRouter>
   );
