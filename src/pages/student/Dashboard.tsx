@@ -17,31 +17,28 @@ type Student = {
   personalEmail?: string;
   branch: Branch;
   semester: string;
-  clubs?: { clubId: string; role?: string }[];
+  clubs?: { clubId?: string; _id?: string; role?: string }[] | string[]; // support both
 };
 
 type Club = { _id: string; clubName: string };
-type EventRow = { _id: string; title: string; schedule?: string };
+type EventRow = { _id: string; title: string; schedule?: string; venue?: string };
 type LeaderboardRow = { _id: string; name: string; points: number };
 
 const STUDENT_API = import.meta.env.VITE_STUDENT_API as string;
 const CLUB_API = import.meta.env.VITE_CLUB_API as string;
-const EVENT_API = import.meta.env.VITE_EVENT_API as string;
-// Token API - env or fallback to the exact local URL you asked for
-const TOKEN_API = (import.meta.env.VITE_TOKEN_API as string);
+const REG_API = import.meta.env.VITE_REG_API as string;
+const TOKEN_API = (import.meta.env.VITE_TOKEN_API as string) || "";
 
 export default function StudentDashboard() {
   const [me, setMe] = useState<Student | null>(null);
   const [clubs, setClubs] = useState<Club[]>([]);
-  const [events, setEvents] = useState<EventRow[]>([]);
+  const [eventsParticipated, setEventsParticipated] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // still needed for navbar icons
   const [tokens, setTokens] = useState<number>(0);
   const [points, setPoints] = useState<number>(0);
 
-  // Leaderboard state
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
   const [leaderLoading, setLeaderLoading] = useState<boolean>(false);
   const [leaderErr, setLeaderErr] = useState<string | null>(null);
@@ -78,8 +75,18 @@ export default function StudentDashboard() {
         if (!mounted) return;
         setMe(profile);
 
-        // 2) clubs — expand names
-        const clubIds = (profile.clubs ?? []).map((c) => c.clubId).filter(Boolean);
+        // 2) clubs — profile.clubs could be strings or objects; extract club ids robustly
+        const clubEntries = Array.isArray(profile.clubs) ? profile.clubs : [];
+        const clubIds: string[] = clubEntries
+          .map((c: any) => {
+            if (!c) return "";
+            if (typeof c === "string") return c;
+            // possible shapes:
+            // { clubId: "..." } or { _id: "..."} or { club: { _id: "..." } }
+            return c.clubId ?? c._id ?? (c.club && (c.club._id ?? c.clubId)) ?? "";
+          })
+          .filter(Boolean);
+
         if (clubIds.length) {
           const list: Club[] = [];
           for (const id of clubIds) {
@@ -87,8 +94,9 @@ export default function StudentDashboard() {
               const r = await axios.get(`${CLUB_API}/club/${id}`, auth);
               const club = r.data?.data ?? r.data;
               if (club?._id) list.push({ _id: club._id, clubName: club.clubName });
-            } catch {
-              /* ignore per-club errors */
+            } catch (e) {
+              // ignore per-club errors
+              console.error("club fetch failed for", id, (e as any)?.message ?? e);
             }
           }
           if (!mounted) return;
@@ -97,22 +105,32 @@ export default function StudentDashboard() {
           setClubs([]);
         }
 
-        // 3) events (coerce to array & shape -> prevents rows.map crash)
+        // 3) registrations -> events participated
         try {
-          const e = await axios.get(`${EVENT_API}/event/all`, auth);
-          const raw = e?.data?.data ?? e?.data ?? [];
-          const safeArray = Array.isArray(raw) ? raw : [];
-          const shaped: EventRow[] = safeArray.slice(0, 5).map((ev: any) => ({
-            _id: String(ev?._id ?? crypto.randomUUID()),
-            title: String(ev?.title ?? "Untitled Event"),
-            schedule: ev?.schedule ? String(ev.schedule) : undefined,
-          }));
-          setEvents(shaped);
-        } catch {
-          setEvents([]);
+          const studentIdentifier = profile._id || profile.email;
+          const r = await axios.get(`${REG_API}/registration/${encodeURIComponent(studentIdentifier)}`, auth);
+          const regs = r?.data?.data ?? r?.data ?? [];
+          const evList: EventRow[] = [];
+          for (const reg of regs) {
+            const ev = reg.eventId ?? reg.event ?? reg.event_id ?? null;
+            if (!ev) continue;
+            evList.push({
+              _id: String(ev._id ?? ev.id ?? ev),
+              title: String(ev.title ?? `Event ${String(ev._id ?? ev.id ?? ev)}`),
+              schedule: ev.schedule ? String(ev.schedule) : undefined,
+              venue: ev.venue ? String(ev.venue) : undefined,
+            });
+          }
+          const map = new Map<string, EventRow>();
+          evList.forEach((e) => map.set(e._id, e));
+          if (!mounted) return;
+          setEventsParticipated(Array.from(map.values()));
+        } catch (err) {
+          console.error("Failed fetching registrations for student:", err);
+          setEventsParticipated([]);
         }
 
-        // 4) tokens/points for navbar icons (placeholders)
+        // 4) tokens/points (local fallback)
         const storedTokens = Number(sessionStorage.getItem("availableTokens") || "0");
         const storedRedeemed = Number(sessionStorage.getItem("redeemedTokens") || "0");
         setTokens(storedTokens);
@@ -130,7 +148,7 @@ export default function StudentDashboard() {
     };
   }, [token, userObj]);
 
-  // === LEADERBOARD FETCH: fetch rows from TOKEN_API/leaderboard/all ===
+  // === LEADERBOARD FETCH & user highlight ===
   useEffect(() => {
     let mounted = true;
     const fetchLeaderboard = async () => {
@@ -139,14 +157,7 @@ export default function StudentDashboard() {
 
       try {
         const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
-        console.log("Hi");
-
         const res = await axios.get(`${TOKEN_API}/token/leaderboard/all`, auth);
-
-        console.log(res);
-        
-
-        // token service might return data in various shapes: try common ones
         const raw = res?.data?.data ?? res?.data ?? res;
         const arr = Array.isArray(raw) ? raw : [];
 
@@ -173,7 +184,6 @@ export default function StudentDashboard() {
 
         if (mounted) {
           setLeaderboardRows(mapped);
-          // ensure visibleCount isn't larger than available rows
           setVisibleCount((prev) => Math.min(prev, Math.max(mapped.length, 10)));
         }
       } catch (err: any) {
@@ -184,33 +194,61 @@ export default function StudentDashboard() {
       }
     };
 
-    fetchLeaderboard();
+    if (TOKEN_API) fetchLeaderboard();
+    else setLeaderErr("Token service URL not set");
     return () => {
       mounted = false;
     };
   }, [token]);
 
-  // Compose club list with roles
+  // Compose club list with roles (works with string[] or object[])
   const clubList = useMemo(() => {
+    if (!me) return [];
     const roleMap = new Map<string, string>();
-    (me?.clubs ?? []).forEach((m) => roleMap.set(m.clubId, m.role || "member"));
-    return clubs.map((c) => ({ _id: c._id, name: c.clubName, role: roleMap.get(c._id) }));
+
+    if (Array.isArray(me.clubs)) {
+      me.clubs.forEach((m: any) => {
+        if (!m) return;
+        if (typeof m === "string") {
+          roleMap.set(m, "member");
+        } else {
+          // possible shapes:
+          // { clubId: "...", role: "..." } or { _id: "...", role: "..." } or { club: { _id: "..." }, role: "..." }
+          const id = m.clubId ?? m._id ?? (m.club && (m.club._id ?? m.clubId)) ?? "";
+          if (id) roleMap.set(id, m.role ?? "member");
+        }
+      });
+    }
+
+    return clubs.map((c) => ({ _id: c._id, name: c.clubName, role: roleMap.get(c._id) ?? "member" }));
   }, [clubs, me]);
 
-  // final leaderboard to pass to LeaderboardMini: show top visibleCount
+  // final leaderboard to pass to LeaderboardMini: prefer showing user first (highlight)
   const shownLeaderboard = useMemo(() => {
-    // fallback: if server hasn't returned anything, show placeholder with current user
-    if (!leaderboardRows.length && me) {
-      return [
-        {
-          _id: me._id,
-          name: `${me.firstName} ${me.lastName}`,
-          points,
-        },
-      ];
+    // map server rows to Row shape expected by mini
+    const full = leaderboardRows.map((r) => ({ studentId: r._id, name: r.name, totalTokens: r.points }));
+    if (!me) return full.slice(0, visibleCount);
+    // attempt to find user index
+    const userKey = me._id ?? me.email ?? "";
+    const idx = full.findIndex((r) => r.studentId === userKey || r.studentId === (me.email ?? ""));
+    let rank = idx >= 0 ? idx + 1 : -1;
+    if (rank === -1) {
+      const nm = `${me.firstName} ${me.lastName}`.trim();
+      const byNameIdx = full.findIndex((r) => r.name === nm);
+      if (byNameIdx >= 0) rank = byNameIdx + 1;
     }
-    return leaderboardRows.slice(0, visibleCount);
-  }, [leaderboardRows, visibleCount, me, points]);
+
+    const userRow = {
+      studentId: me._id ?? crypto.randomUUID(),
+      name: rank > 0 ? `You • ${me.firstName} ${me.lastName} (#${rank})` : `You • ${me.firstName} ${me.lastName}`,
+      totalTokens: points,
+    };
+
+    // build top list excluding a possible duplicate of user
+    const filtered = full.filter((r) => r.studentId !== userRow.studentId && r.name !== `${me.firstName} ${me.lastName}`);
+    const top = filtered.slice(0, Math.max(visibleCount - 1, 0));
+    return [userRow, ...top];
+  }, [leaderboardRows, me, visibleCount, points]);
 
   const hasMore = leaderboardRows.length > visibleCount;
   const isShowingAll = leaderboardRows.length > 0 && visibleCount >= leaderboardRows.length;
@@ -231,9 +269,8 @@ export default function StudentDashboard() {
             </div>
           ) : (
             <div className="grid lg:grid-cols-12 gap-6">
-              {/* LEFT COLUMN (scrolls) */}
+              {/* LEFT */}
               <div className="lg:col-span-8 space-y-6">
-                {/* Greeting */}
                 <div className="rounded-xl border bg-white p-5">
                   <h1 className="text-xl font-semibold">
                     Hey, {me.firstName} {me.lastName}
@@ -243,7 +280,6 @@ export default function StudentDashboard() {
                   </p>
                 </div>
 
-                {/* Clubs participated */}
                 <SectionCard
                   title="Club Participation"
                   action={
@@ -255,7 +291,6 @@ export default function StudentDashboard() {
                   <ClubsMini items={clubList} />
                 </SectionCard>
 
-                {/* Events participated */}
                 <SectionCard
                   title="Events Participated"
                   action={
@@ -264,10 +299,9 @@ export default function StudentDashboard() {
                     </a>
                   }
                 >
-                  <EventsMini rows={Array.isArray(events) ? events : []} />
+                  <EventsMini rows={eventsParticipated} />
                 </SectionCard>
 
-                {/* Suggested events (RAG placeholder) */}
                 <SectionCard
                   title="Suggested for you (RAG)"
                   action={
@@ -283,10 +317,10 @@ export default function StudentDashboard() {
                 </SectionCard>
               </div>
 
-              {/* RIGHT COLUMN — STICKY LEADERBOARD */}
+              {/* RIGHT */}
               <aside className="lg:col-span-4 lg:sticky lg:top-24 self-start">
                 <SectionCard
-                  title="Leaderboard — Top 10"
+                  title="Leaderboard — Top"
                   action={
                     <a className="text-sm text-blue-600 hover:underline" href="/student/leaderboard">
                       View more
@@ -299,9 +333,8 @@ export default function StudentDashboard() {
                     <div className="p-4 text-rose-600">{leaderErr}</div>
                   ) : (
                     <>
-                      <LeaderboardMini rows={shownLeaderboard} />
+                      <LeaderboardMini rows={shownLeaderboard as any} myId={me?._id} />
 
-                      {/* show more / show less button */}
                       {leaderboardRows.length > 0 && (
                         <div className="mt-3 flex justify-center">
                           <button

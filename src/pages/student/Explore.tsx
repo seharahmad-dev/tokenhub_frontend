@@ -97,30 +97,48 @@ export default function Explore() {
         setTopEvents(rawEvents.slice(0, 10));
 
         // Heuristic “hiring” detection + pick club head name
+        // SHOW clubs where either cl.isHiring === true OR description contains hiring keywords
         const hiring = rawClubs
           .filter((cl: any) => {
-            const desc = (cl?.description || "") as string;
-            const isActive = (cl?.status || "active") === "active";
-            const hiringHint = /hiring|recruit|applications\s*open|apply/i.test(
-              desc
+            // explicit flag wins
+            if (cl?.isHiring === true) return true;
+
+            // fallback: detect keywords in description or other text fields
+            const combinedText = `${cl?.description ?? ""} ${cl?.about ?? ""} ${cl?.announcements ?? ""}`.toString();
+            const hiringHint = /hiring|recruit|applications\s*open|apply|vacancy|vacancies|join us/i.test(
+              combinedText
             );
+
+            // also ensure club is active (if status exists)
+            const isActive = (cl?.status ?? "active") === "active";
+
             return isActive && hiringHint;
           })
           .map((cl: any) => {
-            const head =
-              Array.isArray(cl?.members) &&
-              cl.members.find(
-                (m: any) =>
-                  typeof m?.role === "string" &&
-                  ["club head", "clubHead", "Club Head"].includes(
-                    m.role.trim()
-                  )
-              );
+            // Find head robustly: check members array and also fallback to 'members' snapshots
+            let head = null;
+            if (Array.isArray(cl?.members)) {
+              head = cl.members.find((m: any) => {
+                if (!m) return false;
+                const role = (m.role ?? m.position ?? "").toString().toLowerCase();
+                return (
+                  role.includes("club head") ||
+                  role.includes("clubhead") ||
+                  role.includes("president") ||
+                  role.includes("head")
+                );
+              });
+            }
+
+            // fallback to explicit head fields if present
+            const headName =
+              head?.name ?? cl?.headName ?? cl?.presidentName ?? cl?.leaderName ?? undefined;
+
             return {
               _id: cl?._id,
               clubName: cl?.clubName,
               description: cl?.description,
-              headName: head?.name,
+              headName,
             };
           });
 
