@@ -37,8 +37,7 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
       return null;
     }
   });
-  
-  const [fetchingToken, setFetchingToken] = useState(false);
+  const [, setFetchingToken] = useState(false);
 
   // search UI state
   const [query, setQuery] = useState("");

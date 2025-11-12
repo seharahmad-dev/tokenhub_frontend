@@ -13,6 +13,7 @@ export interface Student {
   email?: string;
   personalEmail?: string;
   clubs?: string[] | any[];
+  clubId?: string | null; // <-- ADDED: clubId
   isVerified?: boolean;
   role?: string;
   [key: string]: any;
@@ -40,6 +41,14 @@ const loadStudentFromSession = (): Student | null => {
 
     // normalize id fields
     const student: Student = { ...parsed };
+
+    // keep clubId if present (some backends embed student.clubId or student.club?._id)
+    if (!student.clubId && (parsed as any).clubId) {
+      student.clubId = (parsed as any).clubId;
+    } else if (!student.clubId && (parsed as any).club && (parsed as any).club._id) {
+      student.clubId = (parsed as any).club._id;
+    }
+
     if (!student._id && (student as any).id) {
       student._id = (student as any).id;
       delete (student as any).id;
@@ -51,7 +60,6 @@ const loadStudentFromSession = (): Student | null => {
     return student;
   } catch (err) {
     // swallow parse errors and return null
-    // console.warn("Could not parse session student:", err);
     return null;
   }
 };
@@ -89,12 +97,15 @@ const studentSlice = createSlice({
     // When loginThunk (from authSlice) resolves, its payload shape is:
     // { user: User, token: string } — we use the user part for student slice.
     builder.addCase(loginThunk.fulfilled, (state, action) => {
-      // action.payload.user may be undefined for Admin logins,
-      // so do a safety check.
       const user = (action.payload as any)?.user;
       if (user && (user.role === "Student" || (user.role && user.role.toString().toLowerCase() === "student"))) {
         // normalize id if necessary
         const normalized: Student = { ...user };
+
+        // carry clubId if present in nested shapes
+        if (!normalized.clubId && (user as any).clubId) normalized.clubId = (user as any).clubId;
+        if (!normalized.clubId && (user as any).club && (user as any).club._id) normalized.clubId = (user as any).club._id;
+
         if (!normalized._id && (normalized as any).id) {
           normalized._id = (normalized as any).id;
           delete (normalized as any).id;
@@ -108,7 +119,6 @@ const studentSlice = createSlice({
         // not a student login — keep state as is
       }
     });
-    // Optionally capture pending / rejected if you want student-specific status
     builder.addCase(loginThunk.pending, (state) => {
       state.status = "loading";
       state.error = null;
