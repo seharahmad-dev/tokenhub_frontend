@@ -1,18 +1,64 @@
+// components/student/ClubCard.tsx
+import React, { useState } from "react";
+import { useAppSelector } from "../../app/hooks";
+import { selectStudent } from "../../app/studentSlice";
+
+const CLUB_API = import.meta.env.VITE_CLUB_API || "";
+
+// types/club.ts
+
+// primitive alias for Mongo ObjectId in the client
+export type ID = string;
+
 export type ClubMember = {
-  studentId: string;
+  _id?: ID;                 // member snapshot id (mongoose will add)
+  studentId: ID;
   name: string;
   email: string;
-  role: string;
-  joiningDate?: string | Date;
+  role: string;             // "member" | "Club Head" | etc.
+  joiningDate?: string;     // ISO date string
+};
+
+export type SocialLinks = {
+  instagram?: string;
+  linkedin?: string;
+  discord?: string;
+  github?: string;
+  facebook?: string;
+  twitter?: string;
+  website?: string;
+};
+
+export type EventRef = {
+  eventId?: ID;
+};
+
+export type RefreshTokenRef = {
+  tokenHash: string;
+  device?: string;
+  createdAt?: string;
 };
 
 export type ClubDoc = {
-  _id: string;
+  _id: ID;
   clubName: string;
   description?: string;
+  category?: "Technical" | "Cultural" | "Sports" | "Literary" | "Social" | "Other" | string;
+  facultyAdvisors?: ID[];     // array of faculty ids
+  members: ClubMember[];      // required in schema
+  events?: EventRef[];        // array of event refs
+  rewardTokens?: number;
+  receivedTokens?: number;
+  socialLinks?: SocialLinks;
   status?: "active" | "inactive" | "dissolved" | string;
   logoUrl?: string;
-  members?: ClubMember[];
+  isHiring?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+
+  // NOTE: refreshTokens is sensitive — include it only if your API intentionally returns it.
+  // If you do return it, type it; otherwise omit it from API responses for security.
+  refreshTokens?: RefreshTokenRef[];
 };
 
 export default function ClubCard({
@@ -26,6 +72,72 @@ export default function ClubCard({
   hiring?: boolean;
   onApply?: (id: string) => void;
 }) {
+  const student = useAppSelector(selectStudent);
+  const [busy, setBusy] = useState(false);
+
+  // guard: is user already a member / already applied?
+  // We check student's `clubs` array (as requested).
+  const alreadyInClubs = Boolean(
+    Array.isArray(student?.clubs) && student.clubs.some((c: string) => String(c) === String(club._id))
+  );
+
+  // Also optionally prevent apply if student has a primary clubId set to this club
+  const isPrimaryClub = Boolean(student?.clubId && String(student.clubId) === String(club._id));
+
+  const handleApplyClick = async () => {
+    // local check first
+    if (!student || !student._id) {
+      alert("You must be logged in to apply.");
+      return;
+    }
+    if (alreadyInClubs || isPrimaryClub) {
+      alert("You are already a member of this club.");
+      return;
+    }
+
+    // confirm quick UX
+    const ok = confirm(`Apply to join ${club.clubName}?`);
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      // call backend apply endpoint
+      // NOTE: adjust endpoint/path/body if your API differs.
+      const auth = {
+        headers: { Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}` },
+        withCredentials: true,
+      };
+
+      // prefer POST /club/:id/apply { studentId } — change if your backend expects different
+      const res = await fetch(`${CLUB_API}/club/${club._id}/apply`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}`,
+        },
+        credentials: "include",
+        body: JSON.stringify({ studentId: student._id }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        const msg = body?.message || body?.data || `Apply failed (${res.status})`;
+        alert(msg);
+        return;
+      }
+
+      // success
+      alert("Application submitted — the club will review your request.");
+      // optional callback to parent (e.g. to refresh lists)
+      onApply?.(club._id);
+    } catch (err) {
+      console.error("Apply error:", err);
+      alert("Failed to apply. See console for details.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border bg-white p-4 flex flex-col">
       <div className="flex items-center gap-3">
@@ -70,14 +182,29 @@ export default function ClubCard({
         >
           View details
         </a>
-        {hiring && (
-          <button
-            onClick={() => onApply?.(club._id)}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 text-white px-3 py-2 text-sm"
-          >
-            Apply
-          </button>
-        )}
+
+        {/* Apply button logic */}
+        {hiring ? (
+          alreadyInClubs || isPrimaryClub ? (
+            <button
+              disabled
+              className="inline-flex items-center justify-center rounded-lg bg-slate-200 text-slate-800 px-3 py-2 text-sm"
+              title="You are already a member"
+            >
+              Already a member
+            </button>
+          ) : (
+            <button
+              onClick={handleApplyClick}
+              disabled={busy}
+              className={`inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm ${
+                busy ? "bg-blue-400 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
+            >
+              {busy ? "Applying…" : "Apply"}
+            </button>
+          )
+        ) : null}
       </div>
     </div>
   );

@@ -12,31 +12,82 @@ export default function ManageClubPage() {
   const [hiring, setHiring] = useState(false);
   const [applicants, setApplicants] = useState<any[]>([]);
   const CLUB_API = import.meta.env.VITE_CLUB_API || "";
+  const STUDENT_API = import.meta.env.VITE_STUDENT_API || ""; // OPTIONAL - set this to fetch student details
+
+  // build auth config once
+  const authConfig = {
+    headers: { Authorization: `Bearer ${sessionStorage.getItem("accessToken") || ""}` },
+    withCredentials: true,
+  };
 
   useEffect(() => {
     const load = async () => {
-      if (!me?.clubId) return;
+      if (!me?.clubId) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       try {
-        setLoading(true);
-        const res = await axios.get(`${CLUB_API}/club/${me.clubId}`);
+        // 1) fetch club
+        const res = await axios.get(`${CLUB_API}/club/${me.clubId}`, authConfig);
         const data = res?.data?.data ?? res?.data ?? null;
         if (data) {
           setClub(data);
-          setHiring(data.isHiring ?? false);
+          setHiring(Boolean(data.isHiring ?? false));
+        }
+
+        // 2) fetch applicants (returns array of studentIds)
+        const appsResp = await axios.get(`${CLUB_API}/club/${me.clubId}/applicants`, authConfig);
+        const applicantIds: string[] = appsResp?.data?.data ?? appsResp?.data ?? [];
+
+        if (!Array.isArray(applicantIds) || applicantIds.length === 0) {
+          setApplicants([]);
+          return;
+        }
+
+        // 3) If STUDENT_API provided, fetch each student's snapshot for display
+        if (STUDENT_API) {
+          const studentFetches = applicantIds.map((id) =>
+            axios
+              .get(`${STUDENT_API}/student/${id}`, authConfig)
+              .then((r) => {
+                const s = r?.data?.data ?? r?.data ?? null;
+                return Array.isArray(s) ? s[0] : s;
+              })
+              .catch((err) => {
+                console.warn("Failed to fetch applicant student:", id, err?.message ?? err);
+                // fallback to id-only object so UI can still render something
+                return { _id: id };
+              })
+          );
+
+          const studentSnapshots = await Promise.all(studentFetches);
+          setApplicants(studentSnapshots.filter(Boolean));
+        } else {
+          // no student API available — show ids only
+          setApplicants(applicantIds.map((id) => ({ _id: id })));
         }
       } catch (err) {
-        console.error("Error fetching club:", err);
+        console.error("Error fetching club or applicants:", err);
       } finally {
         setLoading(false);
       }
     };
+
     load();
   }, [me?.clubId]);
 
   const toggleHiring = async () => {
     try {
-      const res = await axios.patch(`${CLUB_API}/club/${me?.clubId}/toggleHiring`);
+      const res = await axios.patch(`${CLUB_API}/club/${me?.clubId}/toggleHiring`, {}, authConfig);
+      // endpoint returns { data: { clubId, isHiring } } from controller earlier
       setHiring(res?.data?.data?.isHiring ?? !hiring);
+      // refresh club object
+      try {
+        const r = await axios.get(`${CLUB_API}/club/${me?.clubId}`, authConfig);
+        setClub(r?.data?.data ?? r?.data ?? club);
+      } catch (_) {}
     } catch (err) {
       console.error("Failed to toggle hiring:", err);
     }
@@ -44,10 +95,26 @@ export default function ManageClubPage() {
 
   const approveApplicant = async (appId: string) => {
     try {
-      await axios.post(`${CLUB_API}/club/${me?.clubId}/approve`, { studentId: appId });
-      setApplicants((prev) => prev.filter((a) => a._id !== appId));
+      // use PATCH /club/:id/applicants/:studentId/accept
+      await axios.patch(
+        `${CLUB_API}/club/${me?.clubId}/applicants/${appId}/accept`,
+        {},
+        authConfig
+      );
+
+      // remove from UI list
+      setApplicants((prev) => prev.filter((a) => String(a._id) !== String(appId)));
+
+      // refresh members list on success
+      try {
+        const r = await axios.get(`${CLUB_API}/club/${me?.clubId}`, authConfig);
+        setClub(r?.data?.data ?? r?.data ?? club);
+      } catch (err) {
+        console.warn("Failed to refresh club after accept:", err);
+      }
     } catch (err) {
       console.error("Failed to approve applicant:", err);
+      alert("Failed to approve applicant. See console for details.");
     }
   };
 
@@ -86,7 +153,7 @@ export default function ManageClubPage() {
                   <ul className="divide-y">
                     {club.members?.map((m: any) => (
                       <li
-                        key={m._id}
+                        key={m._id ?? String(m.studentId)}
                         className="py-2 flex items-center justify-between text-sm text-slate-700"
                       >
                         <span>{m.name}</span>
@@ -102,13 +169,13 @@ export default function ManageClubPage() {
                   <p className="text-slate-500 text-sm">No current applicants.</p>
                 ) : (
                   <ul className="divide-y">
-                    {applicants.map((a) => (
+                    {applicants.map((a: any) => (
                       <li key={a._id} className="py-2 flex justify-between items-center text-sm">
                         <div>
                           <p className="font-medium text-slate-800">
-                            {a.name} ({a.usn})
+                            {a.firstName || a.name || a._id} {a.usn ? `(${a.usn})` : ""}
                           </p>
-                          <p className="text-slate-500 text-xs">{a.email}</p>
+                          {a.email && <p className="text-slate-500 text-xs">{a.email}</p>}
                         </div>
                         <button
                           onClick={() => approveApplicant(a._id)}

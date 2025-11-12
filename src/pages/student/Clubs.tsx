@@ -29,7 +29,7 @@ export default function Clubs() {
         const data = res.data?.data ?? res.data ?? [];
         if (!mounted) return;
 
-        // Normalize minimal fields
+        // Normalize minimal fields, including isHiring boolean from backend
         const normalized: ClubDoc[] = (Array.isArray(data) ? data : []).map((c: any) => ({
           _id: String(c?._id),
           clubName: String(c?.clubName ?? "—"),
@@ -37,6 +37,8 @@ export default function Clubs() {
           status: c?.status ?? "active",
           logoUrl: c?.logoUrl ?? "",
           members: Array.isArray(c?.members) ? c.members : [],
+          // Make sure isHiring is a boolean (default false)
+          isHiring: Boolean(c?.isHiring ?? false),
         }));
         setClubs(normalized);
       } catch (e: any) {
@@ -58,11 +60,15 @@ export default function Clubs() {
     return head?.name || head?.email || "—";
   };
 
-  // Heuristic “hiring” detector (until a backend flag exists):
-  const hiringClubs = useMemo(
-    () => clubs.filter(c => /hire|recruit|opening|join our team|recruitment/i.test(c.description || "")),
-    [clubs]
-  );
+  // Use backend isHiring flag. Fallback to description heuristic if isHiring is false/absent.
+  const hiringClubs = useMemo(() => {
+    // prefer explicit flag
+    const explicit = clubs.filter(c => c.isHiring === true);
+    if (explicit.length > 0) return explicit;
+
+    // fallback heuristic only if no explicit hiring flags present
+    return clubs.filter(c => /hire|recruit|opening|join our team|recruitment/i.test(c.description || ""));
+  }, [clubs]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -79,9 +85,7 @@ export default function Clubs() {
           ) : (
             <>
               {/* Hiring first */}
-              <SectionCard
-                title="Clubs Hiring Now"
-              >
+              <SectionCard title="Clubs Hiring Now">
                 {hiringClubs.length === 0 ? (
                   <EmptyState
                     title="No active recruitments"
@@ -107,9 +111,7 @@ export default function Clubs() {
               </SectionCard>
 
               {/* All clubs */}
-              <SectionCard
-                title="All Clubs"
-              >
+              <SectionCard title="All Clubs">
                 <ClubsGrid
                   items={clubs.map((c) => ({
                     ...c,
