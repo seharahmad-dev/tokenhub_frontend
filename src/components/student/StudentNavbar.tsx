@@ -14,19 +14,15 @@ const LINKS: NavItem[] = [
   { label: "Store", href: "/student/store" },
 ];
 
-export default function StudentNavbar({
-  tokens = 0,
-  points = 0,
-}: {
-  tokens?: number;
-  points?: number;
-}) {
+export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: number; points?: number }) {
   const [open, setOpen] = useState(false);
   const dd = useRef<HTMLDivElement | null>(null);
 
   const [totalTokens, setTotalTokens] = useState<number>(tokens);
   const [availablePoints, setAvailablePoints] = useState<number>(points);
   const [loadingTokens, setLoadingTokens] = useState(false);
+  const [streakCount, setStreakCount] = useState<number>(0); // 🔥 streak days
+  const [hasSolvedToday, setHasSolvedToday] = useState<boolean>(false); // for fire icon
 
   const student = useAppSelector(selectStudent);
 
@@ -38,56 +34,44 @@ export default function StudentNavbar({
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // ✅ Fetch tokens as soon as navbar mounts or student becomes available
-  useEffect(() => {    
-    const fetchTokens = async () => {     
-      if (!student?._id) {
-        console.log("⏳ Waiting for student data...");
-        return;
-      }
-
+  useEffect(() => {
+    const fetchTokens = async () => {
+      if (!student?._id) return;
       setLoadingTokens(true);
       try {
-        // if your backend is running on a different origin, replace with full base URL
         const baseURL = import.meta.env.VITE_TOKEN_API || "";
-        const resp = await axios.get(
-          `${baseURL}/token/${student._id}/total`,
-          { withCredentials: true }
-        );
-        
-        console.log(`${baseURL}/api/token/${student._id}/total`);
-        
-
+        const resp = await axios.get(`${baseURL}/token/${student._id}/total`, { withCredentials: true });
         const data = resp?.data?.data;
-        console.log("✅ Token data:", data);
-
         if (data) {
           setTotalTokens(data.totalTokens ?? 0);
           setAvailablePoints(data.availableTokens ?? 0);
         }
       } catch (err: any) {
-        console.error("❌ Error fetching tokens:", err);
+        console.error("Error fetching tokens:", err);
       } finally {
         setLoadingTokens(false);
       }
     };
-
-    // Always run once on mount, and whenever student id changes
     fetchTokens();
   }, [student?._id]);
+
+  // 🔥 Simulate streak (replace later with quiz API)
+  useEffect(() => {
+    // Suppose we later store streak in backend or quiz data
+    setStreakCount(5); // mock data
+    setHasSolvedToday(true); // true = filled fire
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/70 backdrop-blur">
       <div className="container 2xl:px-0 px-4">
         <div className="max-w-[1280px] mx-auto flex items-center justify-between h-16">
-          {/* Logo → Dashboard */}
+          {/* Logo */}
           <a href="/student" className="inline-flex items-center gap-2 font-semibold">
             <span className="text-slate-900">
               Token<span className="text-blue-600">HUB</span>
             </span>
-            <span className="ml-2 rounded-md border px-2 py-0.5 text-xs text-slate-600">
-              Student
-            </span>
+            <span className="ml-2 rounded-md border px-2 py-0.5 text-xs text-slate-600">Student</span>
           </a>
 
           {/* Center nav */}
@@ -99,9 +83,20 @@ export default function StudentNavbar({
             ))}
           </nav>
 
-          {/* Right: notification + tokens + points + avatar */}
+          {/* Right */}
           <div className="flex items-center gap-3">
-            {/* 🔔 Notification icon */}
+            {/* 🔥 Fire streak */}
+            <div
+              className={`inline-flex items-center justify-center h-8 px-2.5 rounded-lg border bg-white text-sm font-medium ${
+                hasSolvedToday ? "text-orange-600" : "text-slate-400"
+              }`}
+              title="Daily Streak"
+            >
+              <span>{hasSolvedToday ? "🔥" : "🔥"}</span>
+              <span className="ml-1">{streakCount}</span>
+            </div>
+
+            {/* 🔔 Notification */}
             <a
               href="/student/notifications"
               className="inline-flex items-center justify-center h-8 w-8 rounded-lg border bg-white text-slate-700"
@@ -110,26 +105,16 @@ export default function StudentNavbar({
               <span>🔔</span>
             </a>
 
-            {/* 🪙 Total Tokens */}
-            <div
-              className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white"
-              title="Total Tokens"
-            >
+            {/* 🪙 Tokens */}
+            <div className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white" title="Total Tokens">
               <span>🪙</span>
-              <span className="font-medium">
-                {loadingTokens ? "..." : totalTokens}
-              </span>
+              <span className="font-medium">{loadingTokens ? "..." : totalTokens}</span>
             </div>
 
-            {/* 🏆 Available Tokens */}
-            <div
-              className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white"
-              title="Available Tokens"
-            >
+            {/* 🏆 Available */}
+            <div className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white" title="Available Tokens">
               <span>🏆</span>
-              <span className="font-medium">
-                {loadingTokens ? "..." : availablePoints}
-              </span>
+              <span className="font-medium">{loadingTokens ? "..." : availablePoints}</span>
             </div>
 
             {/* Avatar dropdown */}
@@ -144,13 +129,7 @@ export default function StudentNavbar({
               {open && (
                 <div className="absolute right-0 mt-2 w-48 rounded-xl border bg-white shadow-lg">
                   <a href="/student/profile" className="block px-3 py-2 text-sm hover:bg-slate-50">
-                    View Profile
-                  </a>
-                  <a
-                    href="/student/profile/edit"
-                    className="block px-3 py-2 text-sm hover:bg-slate-50"
-                  >
-                    Edit Profile
+                    Your Profile
                   </a>
                   <button
                     onClick={() => {

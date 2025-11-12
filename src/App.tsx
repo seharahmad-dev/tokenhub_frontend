@@ -21,6 +21,7 @@ import Discuss from "./pages/student/Discuss";
 import DiscussDetail from "./pages/student/DiscussDetail";
 import DiscussCreate from "./pages/student/DiscussCreate";
 import LeaderboardPage from "./pages/student/Leaderboard";
+import ProfilePage from "./pages/student/ProfilePage";
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/student/discuss/create" element={<DiscussCreate />} />
         <Route path="/student/discuss/:id" element={<DiscussDetail />} />
         <Route path="/student/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/student/profile" element={<ProfilePage />} />
       </Routes>
     </BrowserRouter>
   );
