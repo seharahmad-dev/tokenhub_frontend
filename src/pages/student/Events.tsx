@@ -76,19 +76,6 @@ export default function Events() {
     return list.filter((e) => myEventIds.has(e._id));
   }, [events, filter]);
 
-  const handleRegister = (id: string) => {
-    // Client-side placeholder to simulate a registration:
-    // Persist id so button hides next render. Replace with real POST /event/:id/register later.
-    const stored = JSON.parse(sessionStorage.getItem("registeredEventIds") || "[]");
-    if (!stored.includes(id)) {
-      const next = [...stored, id];
-      sessionStorage.setItem("registeredEventIds", JSON.stringify(next));
-      setMyEventIds(new Set<string>([...Array.from(myEventIds), id]));
-    }
-    // Optionally navigate to details/confirmation page
-    // window.location.href = `/student/events/${id}`;
-  };
-
   return (
     <div className="min-h-screen bg-slate-50">
       <StudentNavbar />
@@ -142,9 +129,9 @@ export default function Events() {
                     key={e._id}
                     e={e}
                     participated={myEventIds.has(e._id) || isPast(e.schedule)}
-                    onRegister={handleRegister}
                   />
                 ))}
+
               </div>
             )}
           </SectionCard>

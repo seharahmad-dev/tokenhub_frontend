@@ -1,47 +1,34 @@
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 
 export type EventRow = {
   _id: string;
   title: string;
   description: string;
-  type: "Hackathon" | "Workshop" | "Webinar" | "Competition" | "Codeathon" | string;
+  type: string;
   venue: string;
-  schedule: string | Date; // ISO from API
+  schedule: string | Date;
   capacity?: number;
-  eligibility?: {
-    branch: "*" | "CSE" | "ISE" | "EC" | string;
-    semester: "*" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | string;
-  };
-  organizers?: {
-    clubId: string;
-    coordinators?: { studentId: string; role?: string }[];
-    facultyMembers?: string[];
-  };
+  eligibility?: { branch: string; semester: string };
+  organizers?: { clubId: string };
   organizingBranch?: string;
-  permission?: "Approved" | "Unapproved" | string;
+  permission?: string;
 };
 
 export default function EventCard({
   e,
   participated,
-  onRegister,
 }: {
   e: EventRow;
   participated: boolean;
-  onRegister: (id: string) => void;
 }) {
-  const when = useMemo(() => {
-    const d = new Date(e.schedule);
-    return isNaN(d.getTime()) ? "—" : d.toLocaleString();
-  }, [e.schedule]);
+  const navigate = useNavigate();
 
   const isPast = useMemo(() => {
     const d = new Date(e.schedule);
     if (isNaN(d.getTime())) return false;
     return d.getTime() < Date.now();
   }, [e.schedule]);
-
-  const showRegister = !isPast && !participated;
 
   return (
     <div className="rounded-xl border bg-white p-4 sm:p-5">
@@ -50,10 +37,10 @@ export default function EventCard({
           <h3 className="text-lg font-semibold">{e.title}</h3>
           <div className="mt-1 text-sm text-slate-600">
             <span className="inline-block mr-3">
-              Type: <b>{e.type || "—"}</b>
+              Type: <b>{e.type}</b>
             </span>
             <span className="inline-block mr-3">
-              Venue: <b>{e.venue || "—"}</b>
+              Venue: <b>{e.venue}</b>
             </span>
             <span className="inline-block">
               Club: <b>{e.organizers?.clubId || "—"}</b>
@@ -66,52 +53,22 @@ export default function EventCard({
             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
               isPast ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-700"
             }`}
-            title="Date & time"
           >
             {isPast ? "Past" : "Upcoming"}
           </div>
-          {participated && (
-            <div
-              className="mt-1 inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700"
-              title="You already registered/participated"
-            >
-              Registered
-            </div>
-          )}
         </div>
       </div>
 
       <p className="mt-3 text-sm text-slate-700 line-clamp-3">{e.description}</p>
 
-      <div className="mt-4 grid gap-2 text-sm">
-        <div className="text-slate-600">
-          <span className="inline-block w-24 text-slate-500">Schedule:</span>
-          <b>{when}</b>
-        </div>
-        {typeof e.capacity === "number" && (
-          <div className="text-slate-600">
-            <span className="inline-block w-24 text-slate-500">Capacity:</span>
-            <b>{e.capacity}</b>
-          </div>
-        )}
-        {e.eligibility && (
-          <div className="text-slate-600">
-            <span className="inline-block w-24 text-slate-500">Eligibility:</span>
-            <b>
-              {e.eligibility.branch} • Sem {e.eligibility.semester}
-            </b>
-          </div>
-        )}
+      <div className="mt-4 text-xs text-slate-500">
+        Branch: {e.organizingBranch || "—"} • Status: {e.permission || "—"}
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-xs text-slate-500">
-          Branch: {e.organizingBranch || "—"} • Status: {e.permission || "—"}
-        </div>
-
-        {showRegister ? (
+      <div className="mt-4">
+        {!isPast && !participated ? (
           <button
-            onClick={() => onRegister(e._id)}
+            onClick={() => navigate(`/student/events/${e._id}/register`)}
             className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             Register Now
@@ -120,7 +77,6 @@ export default function EventCard({
           <button
             disabled
             className="inline-flex items-center rounded-lg bg-slate-200 px-3 py-2 text-sm font-medium text-slate-600"
-            title={isPast ? "Event already happened" : "You have already registered"}
           >
             {isPast ? "Closed" : "Registered"}
           </button>
