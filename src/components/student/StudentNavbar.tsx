@@ -1,3 +1,4 @@
+// src/pages/student/StudentNavbar.tsx
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
@@ -15,25 +16,56 @@ const LINKS: NavItem[] = [
   { label: "Store", href: "/student/store" },
 ];
 
+type Notification = {
+  inviterId: string;
+  registrationId: string | null;
+  eventName: string;
+  createdAt?: string;
+  [k: string]: any;
+};
+
 export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: number; points?: number }) {
-  const [open, setOpen] = useState(false);
-  const dd = useRef<HTMLDivElement | null>(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const notifRef = useRef<HTMLDivElement | null>(null);
+  const profileRef = useRef<HTMLDivElement | null>(null);
+  const notifBtnRef = useRef<HTMLButtonElement | null>(null);
+
   const [totalTokens, setTotalTokens] = useState(tokens);
   const [availablePoints, setAvailablePoints] = useState(points);
   const [loadingTokens, setLoadingTokens] = useState(false);
   const [streakCount, setStreakCount] = useState(0);
   const [hasSolvedToday, setHasSolvedToday] = useState(false);
+
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notifError, setNotifError] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null); // registrationId being acted on
+
   const student = useAppSelector(selectStudent);
   const location = useLocation();
 
+  // unified click-outside handler for both panels
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dd.current && !dd.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (notifOpen) {
+        if (notifRef.current && !notifRef.current.contains(target) && !notifBtnRef.current?.contains(target)) {
+          setNotifOpen(false);
+        }
+      }
+      if (profileOpen) {
+        if (profileRef.current && !profileRef.current.contains(target)) {
+          setProfileOpen(false);
+        }
+      }
     }
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
+  }, [notifOpen, profileOpen]);
 
+  // fetch tokens (unchanged)
   useEffect(() => {
     const fetchTokens = async () => {
       if (!student?._id) return;
@@ -62,6 +94,88 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
+  // Fetch notifications when notification panel opens
+  useEffect(() => {
+    if (!notifOpen) return;
+    if (!student?._id) {
+      setNotifications([]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchNotifications = async () => {
+      setLoadingNotifications(true);
+      setNotifError(null);
+      try {
+        const STUDENT_API = import.meta.env.VITE_STUDENT_API || ""; // set in env
+        const resp = await axios.get(`${STUDENT_API}/student/${student._id}/notifications`, { withCredentials: true });
+        const data = resp?.data?.data ?? resp?.data ?? null;
+        if (!cancelled) {
+          const notifs: Notification[] = Array.isArray(data?.notifications) ? data.notifications : [];
+          setNotifications(notifs);
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch notifications:", err);
+        if (!cancelled) setNotifError("Failed to load notifications");
+      } finally {
+        if (!cancelled) setLoadingNotifications(false);
+      }
+    };
+
+    fetchNotifications();
+    return () => {
+      cancelled = true;
+    };
+  }, [notifOpen, student?._id]);
+
+  // helper to remove a notification locally
+  const removeNotificationLocally = (registrationId?: string | null, inviterId?: string, eventName?: string) => {
+    setNotifications(prev =>
+      prev.filter(n => !(String(n.registrationId) === String(registrationId) && n.inviterId === inviterId && n.eventName === eventName))
+    );
+  };
+
+  // Accept invitation: call registration service accept endpoint
+  const acceptInvitation = async (notif: Notification) => {
+    if (!notif.registrationId || !student?._id) return;
+    const REG_API = import.meta.env.VITE_REGISTRATION_API || ""; // e.g. http://localhost:4010
+    setActionLoadingId(notif.registrationId);
+    try {
+      await axios.patch(
+        `${REG_API}/registration/${notif.registrationId}/accept`,
+        { studentId: student._id },
+        { withCredentials: true }
+      );
+      // on success remove notification
+      removeNotificationLocally(notif.registrationId, notif.inviterId, notif.eventName);
+    } catch (err) {
+      console.error("Accept invitation failed:", err);
+      setNotifError("Failed to accept invitation");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const rejectInvitation = async (notif: Notification) => {
+    if (!notif.registrationId || !student?._id) return;
+    const REG_API = import.meta.env.VITE_REGISTRATION_API || ""; // e.g. http://localhost:4010
+    setActionLoadingId(notif.registrationId);
+    try {
+      await axios.patch(
+        `${REG_API}/registration/${notif.registrationId}/reject`,
+        { studentId: student._id },
+        { withCredentials: true }
+      );
+      // remove notification
+      removeNotificationLocally(notif.registrationId, notif.inviterId, notif.eventName);
+    } catch (err) {
+      console.error("Reject invitation failed:", err);
+      setNotifError("Failed to reject invitation");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/70 backdrop-blur">
       <div className="container 2xl:px-0 px-4">
@@ -78,9 +192,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
               <a
                 key={l.label}
                 href={l.href}
-                className={`hover:text-slate-900 ${
-                  isActive(l.href) ? "text-blue-600 font-medium" : "text-slate-600"
-                }`}
+                className={`hover:text-slate-900 ${isActive(l.href) ? "text-blue-600 font-medium" : "text-slate-600"}`}
               >
                 {l.label}
               </a>
@@ -107,13 +219,88 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
               <span className="ml-1">{streakCount}</span>
             </div>
 
-            <a
-              href="/student/notifications"
-              className="inline-flex items-center justify-center h-8 w-8 rounded-lg border bg-white text-slate-700"
-              title="Notifications"
-            >
-              <span>🔔</span>
-            </a>
+            {/* Notifications */}
+            <div className="relative">
+              <button
+                ref={notifBtnRef}
+                onClick={() => setNotifOpen(v => !v)}
+                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border bg-white text-slate-700"
+                title="Notifications"
+                aria-expanded={notifOpen}
+                aria-haspopup="true"
+              >
+                <span>🔔</span>
+              </button>
+
+              {notifOpen && (
+                <div
+                  ref={notifRef}
+                  className="absolute right-0 mt-2 w-80 max-h-[60vh] overflow-auto rounded-xl border bg-white shadow-lg z-50"
+                >
+                  <div className="px-4 py-3 border-b">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm">Notifications</h4>
+                      <button
+                        onClick={() => { setNotifications([]); /* optionally call endpoint to clear */ }}
+                        className="text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-3 space-y-2">
+                    {loadingNotifications ? (
+                      <div className="text-center text-sm text-slate-500 py-8">Loading…</div>
+                    ) : notifError ? (
+                      <div className="text-center text-sm text-rose-600 py-4">{notifError}</div>
+                    ) : notifications.length === 0 ? (
+                      <div className="text-center text-sm text-slate-500 py-6">No notifications</div>
+                    ) : (
+                      notifications.map((n, idx) => (
+                        <div key={`${n.registrationId ?? "n"}-${idx}`} className="border rounded-md p-3 bg-white">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-slate-800">
+                                {n.eventName || "Invitation"}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                Invited by {n.inviterId}
+                              </div>
+                              <div className="text-xs text-slate-400 mt-1">
+                                {n.createdAt ? new Date(n.createdAt).toLocaleString() : null}
+                              </div>
+                            </div>
+
+                            {/* If registrationId exists -> invitation (show accept/reject) */}
+                            {n.registrationId ? (
+                              <div className="flex flex-col items-end gap-2">
+                                <button
+                                  onClick={() => acceptInvitation(n)}
+                                  disabled={actionLoadingId === n.registrationId}
+                                  className="text-xs px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
+                                >
+                                  {actionLoadingId === n.registrationId ? "…" : "Accept"}
+                                </button>
+                                <button
+                                  onClick={() => rejectInvitation(n)}
+                                  disabled={actionLoadingId === n.registrationId}
+                                  className="text-xs px-3 py-1 rounded-md border bg-white hover:bg-slate-50 disabled:opacity-60"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-slate-500">Info</div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white">
               <span>🪙</span>
@@ -125,14 +312,15 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
               <span>{loadingTokens ? "..." : availablePoints}</span>
             </div>
 
-            <div className="relative" ref={dd}>
+            {/* Profile dropdown (restored original behavior) */}
+            <div className="relative" ref={profileRef}>
               <button
-                onClick={() => setOpen((v) => !v)}
+                onClick={() => setProfileOpen(v => !v)}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-slate-700"
               >
                 👤
               </button>
-              {open && (
+              {profileOpen && (
                 <div className="absolute right-0 mt-2 w-48 rounded-xl border bg-white shadow-lg">
                   <a href="/student/profile" className="block px-3 py-2 text-sm hover:bg-slate-50">
                     Your Profile
