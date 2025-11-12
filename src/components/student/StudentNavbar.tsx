@@ -17,9 +17,11 @@ const LINKS: NavItem[] = [
 ];
 
 type Notification = {
-  inviterId: string;
+  inviterName?: string;
+  inviterId?: string; // back-compat if server still sends inviterId
   registrationId: string | null;
   eventName: string;
+  read?: boolean;
   createdAt?: string;
   [k: string]: any;
 };
@@ -41,12 +43,12 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [notifError, setNotifError] = useState<string | null>(null);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null); // registrationId being acted on
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const student = useAppSelector(selectStudent);
   const location = useLocation();
 
-  // unified click-outside handler for both panels
+  // click-outside handler for both panels
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as Node;
@@ -94,7 +96,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
-  // Fetch notifications when notification panel opens
+  // Fetch notifications when the panel opens (and also whenever student changes).
   useEffect(() => {
     if (!notifOpen) return;
     if (!student?._id) {
@@ -107,13 +109,13 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
       setLoadingNotifications(true);
       setNotifError(null);
       try {
-        const STUDENT_API = import.meta.env.VITE_STUDENT_API || ""; // set in env
-        const resp = await axios.get(`${STUDENT_API}/student/${student._id}/notifications`, { withCredentials: true });
-        const data = resp?.data?.data ?? resp?.data ?? null;
-        if (!cancelled) {
-          const notifs: Notification[] = Array.isArray(data?.notifications) ? data.notifications : [];
-          setNotifications(notifs);
-        }
+        const STUDENT_API = import.meta.env.VITE_STUDENT_API || ""; // e.g. http://localhost:4001
+        // NOTE: expects endpoint GET /student/:id/notifications
+        const resp = await axios.get(`${STUDENT_API}/student/${student._id}/notifications`, { withCredentials: true, timeout: 5000 });
+        // support either shape: { data: { notifications: [...] } } or { data: [...] }
+        const payload = resp?.data?.data ?? resp?.data ?? null;
+        const notifs: Notification[] = Array.isArray(payload) ? payload : Array.isArray(payload?.notifications) ? payload.notifications : [];
+        if (!cancelled) setNotifications(notifs);
       } catch (err: any) {
         console.error("Failed to fetch notifications:", err);
         if (!cancelled) setNotifError("Failed to load notifications");
@@ -123,16 +125,51 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
     };
 
     fetchNotifications();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [notifOpen, student?._id]);
 
-  // helper to remove a notification locally
-  const removeNotificationLocally = (registrationId?: string | null, inviterId?: string, eventName?: string) => {
-    setNotifications(prev =>
-      prev.filter(n => !(String(n.registrationId) === String(registrationId) && n.inviterId === inviterId && n.eventName === eventName))
-    );
+  // optional: fetch notifications when user signs in (so badge shows without clicking)
+  useEffect(() => {
+    if (!student?._id) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const STUDENT_API = import.meta.env.VITE_STUDENT_API || "";
+        const resp = await axios.get(`${STUDENT_API}/student/${student._id}/notifications`, { withCredentials: true, timeout: 5000 });
+        const payload = resp?.data?.data ?? resp?.data ?? null;
+        const notifs: Notification[] = Array.isArray(payload) ? payload : Array.isArray(payload?.notifications) ? payload.notifications : [];
+        if (mounted) setNotifications(notifs);
+      } catch (err) {
+        // ignore — main fetch runs on open
+      }
+    })();
+    return () => { mounted = false; };
+  }, [student?._id]);
+
+  // helper to mark a notification read locally
+  const markNotificationReadLocally = (registrationId?: string | null) => {
+    if (!registrationId) return;
+    setNotifications(prev => prev.map(n => {
+      if (String(n.registrationId) === String(registrationId)) {
+        return { ...n, read: true };
+      }
+      return n;
+    }));
+  };
+
+  // helper to call student API to mark as read (best-effort)
+  const markNotificationReadRemote = async (registrationId?: string | null) => {
+    if (!registrationId || !student?._id) return;
+    const STUDENT_API = import.meta.env.VITE_STUDENT_API || "";
+    try {
+      await axios.patch(
+        `${STUDENT_API}/student/${student._id}/notifications/${registrationId}/read`,
+        {},
+        { withCredentials: true, timeout: 4000 }
+      );
+    } catch (err) {
+      console.error("Failed to mark notification read remotely:", err);
+    }
   };
 
   // Accept invitation: call registration service accept endpoint
@@ -142,12 +179,14 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
     setActionLoadingId(notif.registrationId);
     try {
       await axios.patch(
-        `${REG_API}/registration/${notif.registrationId}/accept`,
+        `${REG_API}/registrations/${notif.registrationId}/accept`,
         { studentId: student._id },
         { withCredentials: true }
       );
-      // on success remove notification
-      removeNotificationLocally(notif.registrationId, notif.inviterId, notif.eventName);
+
+      // mark notification as read (local + remote best-effort)
+      markNotificationReadLocally(notif.registrationId);
+      markNotificationReadRemote(notif.registrationId);
     } catch (err) {
       console.error("Accept invitation failed:", err);
       setNotifError("Failed to accept invitation");
@@ -158,16 +197,18 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
 
   const rejectInvitation = async (notif: Notification) => {
     if (!notif.registrationId || !student?._id) return;
-    const REG_API = import.meta.env.VITE_REGISTRATION_API || ""; // e.g. http://localhost:4010
+    const REG_API = import.meta.env.VITE_REGISTRATION_API || "";
     setActionLoadingId(notif.registrationId);
     try {
       await axios.patch(
-        `${REG_API}/registration/${notif.registrationId}/reject`,
+        `${REG_API}/registrations/${notif.registrationId}/reject`,
         { studentId: student._id },
         { withCredentials: true }
       );
-      // remove notification
-      removeNotificationLocally(notif.registrationId, notif.inviterId, notif.eventName);
+
+      // mark notification as read (local + remote best-effort)
+      markNotificationReadLocally(notif.registrationId);
+      markNotificationReadRemote(notif.registrationId);
     } catch (err) {
       console.error("Reject invitation failed:", err);
       setNotifError("Failed to reject invitation");
@@ -175,6 +216,9 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
       setActionLoadingId(null);
     }
   };
+
+  // unread / badge count (only unread notifications)
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/70 backdrop-blur">
@@ -210,9 +254,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
             )}
 
             <div
-              className={`inline-flex items-center justify-center h-8 px-2.5 rounded-lg border bg-white text-sm font-medium ${
-                hasSolvedToday ? "text-orange-600" : "text-slate-400"
-              }`}
+              className={`inline-flex items-center justify-center h-8 px-2.5 rounded-lg border bg-white text-sm font-medium ${hasSolvedToday ? "text-orange-600" : "text-slate-400"}`}
               title="Daily Streak"
             >
               <span>🔥</span>
@@ -224,28 +266,25 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
               <button
                 ref={notifBtnRef}
                 onClick={() => setNotifOpen(v => !v)}
-                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border bg-white text-slate-700"
+                className="relative inline-flex items-center justify-center h-8 w-8 rounded-lg border bg-white text-slate-700"
                 title="Notifications"
                 aria-expanded={notifOpen}
                 aria-haspopup="true"
               >
                 <span>🔔</span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 text-[10px] bg-rose-600 text-white rounded-full px-1 leading-none">
+                    {unreadCount}
+                  </span>
+                )}
               </button>
 
               {notifOpen && (
-                <div
-                  ref={notifRef}
-                  className="absolute right-0 mt-2 w-80 max-h-[60vh] overflow-auto rounded-xl border bg-white shadow-lg z-50"
-                >
+                <div ref={notifRef} className="absolute right-0 mt-2 w-80 max-h-[60vh] overflow-auto rounded-xl border bg-white shadow-lg z-50">
                   <div className="px-4 py-3 border-b">
                     <div className="flex items-center justify-between">
                       <h4 className="font-medium text-sm">Notifications</h4>
-                      <button
-                        onClick={() => { setNotifications([]); /* optionally call endpoint to clear */ }}
-                        className="text-xs text-slate-500 hover:text-slate-700"
-                      >
-                        Clear
-                      </button>
+                      <button onClick={() => setNotifications([])} className="text-xs text-slate-500 hover:text-slate-700">Clear</button>
                     </div>
                   </div>
 
@@ -257,45 +296,56 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
                     ) : notifications.length === 0 ? (
                       <div className="text-center text-sm text-slate-500 py-6">No notifications</div>
                     ) : (
-                      notifications.map((n, idx) => (
-                        <div key={`${n.registrationId ?? "n"}-${idx}`} className="border rounded-md p-3 bg-white">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-slate-800">
-                                {n.eventName || "Invitation"}
+                      notifications.map((n, idx) => {
+                        const isRead = !!n.read;
+                        return (
+                          <div
+                            key={`${n.registrationId ?? "n"}-${idx}`}
+                            className={`border rounded-md p-3 ${isRead ? "bg-slate-50 text-slate-400" : "bg-white"}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className={`text-sm font-medium ${isRead ? "text-slate-400" : "text-slate-800"}`}>
+                                  {n.eventName || "Invitation"}
+                                </div>
+                                <div className="text-xs" style={{ color: isRead ? undefined : undefined }}>
+                                  <span className={isRead ? "text-slate-400" : "text-slate-500"}>
+                                    Invited by {n.inviterName ?? n.inviterId ?? "Unknown"}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-slate-400 mt-1">
+                                  {n.createdAt ? new Date(n.createdAt).toLocaleString() : null}
+                                </div>
                               </div>
-                              <div className="text-xs text-slate-500">
-                                Invited by {n.inviterId}
-                              </div>
-                              <div className="text-xs text-slate-400 mt-1">
-                                {n.createdAt ? new Date(n.createdAt).toLocaleString() : null}
-                              </div>
-                            </div>
 
-                            {/* If registrationId exists -> invitation (show accept/reject) */}
-                            {n.registrationId ? (
-                              <div className="flex flex-col items-end gap-2">
-                                <button
-                                  onClick={() => acceptInvitation(n)}
-                                  disabled={actionLoadingId === n.registrationId}
-                                  className="text-xs px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
-                                >
-                                  {actionLoadingId === n.registrationId ? "…" : "Accept"}
-                                </button>
-                                <button
-                                  onClick={() => rejectInvitation(n)}
-                                  disabled={actionLoadingId === n.registrationId}
-                                  className="text-xs px-3 py-1 rounded-md border bg-white hover:bg-slate-50 disabled:opacity-60"
-                                >
-                                  Reject
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-slate-500">Info</div>
-                            )}
+                              {n.registrationId ? (
+                                isRead ? (
+                                  <div className="text-xs text-slate-400">Handled</div>
+                                ) : (
+                                  <div className="flex flex-col items-end gap-2">
+                                    <button
+                                      onClick={() => acceptInvitation(n)}
+                                      disabled={actionLoadingId === n.registrationId}
+                                      className="text-xs px-3 py-1 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
+                                    >
+                                      {actionLoadingId === n.registrationId ? "…" : "Accept"}
+                                    </button>
+                                    <button
+                                      onClick={() => rejectInvitation(n)}
+                                      disabled={actionLoadingId === n.registrationId}
+                                      className="text-xs px-3 py-1 rounded-md border bg-white hover:bg-slate-50 disabled:opacity-60"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                )
+                              ) : (
+                                <div className="text-xs text-slate-500">Info</div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -312,29 +362,13 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
               <span>{loadingTokens ? "..." : availablePoints}</span>
             </div>
 
-            {/* Profile dropdown (restored original behavior) */}
+            {/* Profile dropdown (restored) */}
             <div className="relative" ref={profileRef}>
-              <button
-                onClick={() => setProfileOpen(v => !v)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-slate-700"
-              >
-                👤
-              </button>
+              <button onClick={() => setProfileOpen(v => !v)} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-slate-700">👤</button>
               {profileOpen && (
                 <div className="absolute right-0 mt-2 w-48 rounded-xl border bg-white shadow-lg">
-                  <a href="/student/profile" className="block px-3 py-2 text-sm hover:bg-slate-50">
-                    Your Profile
-                  </a>
-                  <button
-                    onClick={() => {
-                      sessionStorage.removeItem("accessToken");
-                      sessionStorage.removeItem("user");
-                      window.location.href = "/";
-                    }}
-                    className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
-                  >
-                    Logout
-                  </button>
+                  <a href="/student/profile" className="block px-3 py-2 text-sm hover:bg-slate-50">Your Profile</a>
+                  <button onClick={() => { sessionStorage.removeItem("accessToken"); sessionStorage.removeItem("user"); window.location.href = "/"; }} className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50">Logout</button>
                 </div>
               )}
             </div>

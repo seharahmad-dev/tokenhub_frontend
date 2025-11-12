@@ -36,11 +36,12 @@ export default function EventPaymentPage() {
   const finalize = async () => {
     if (!paymentId) return alert("Enter payment ID");
 
+    // ensure participants are IDs (IDs were passed from EventRegisterPage)
     await axios.post(`${REG_API}/registrations/create`, {
       eventId: id,
       teamName: state.teamName,
-      participantsId: state.participants,
-      teamLeaderId: state.leader,
+      participantsId: state.participants, // <-- array of student IDs (not emails)
+      teamLeaderId: state.leader,        // <-- leader ID
       paymentId,
     });
 

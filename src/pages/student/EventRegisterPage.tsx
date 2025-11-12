@@ -15,7 +15,7 @@ export default function EventRegisterPage() {
 
   const [teamName, setTeamName] = useState("");
   const [students, setStudents] = useState<any[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>([]); // will hold student._id
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -26,17 +26,18 @@ export default function EventRegisterPage() {
 
   const filtered = students.filter(
     (s) =>
-      s.email !== me?.email &&
-      (s.firstName + " " + s.lastName)
+      s._id !== me?._id &&
+      ( (s.firstName ?? "") + " " + (s.lastName ?? "") )
         .toLowerCase()
         .includes(search.toLowerCase())
   );
 
   const handleNext = () => {
     if (!teamName) return alert("Enter team name");
-    if (!me || !me.email) return alert("Student information not found.");
+    if (!me || !me._id) return alert("Student information not found.");
+    // participants are IDs now
     navigate(`/student/events/${id}/payment`, {
-      state: { teamName, participants: [me.email, ...selected], leader: me.email, eventId: id },
+      state: { teamName, participants: [me._id, ...selected], leader: me._id, eventId: id },
     });
   };
 
@@ -60,15 +61,13 @@ export default function EventRegisterPage() {
             />
             <div className="max-h-60 overflow-y-auto border rounded-lg">
               {filtered.map((s) => (
-                <label key={s.email} className="flex items-center px-3 py-2 border-b">
+                <label key={s._id} className="flex items-center px-3 py-2 border-b">
                   <input
                     type="checkbox"
-                    checked={selected.includes(s.email)}
+                    checked={selected.includes(s._id)}
                     onChange={() =>
                       setSelected((prev) =>
-                        prev.includes(s.email)
-                          ? prev.filter((x) => x !== s.email)
-                          : [...prev, s.email]
+                        prev.includes(s._id) ? prev.filter((x) => x !== s._id) : [...prev, s._id]
                       )
                     }
                     className="mr-2"
