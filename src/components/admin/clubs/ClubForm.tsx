@@ -1,9 +1,9 @@
 // components/admin/clubs/ClubForm.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import axios from "axios";
 
 export type ClubCreatePayload = {
   clubName: string;
-  password: string;
   /** Backend expects exactly one member with role "Club Head" */
   members: Array<{ studentId: string; role: "Club Head"; joiningDate?: string }>;
 };
@@ -22,11 +22,22 @@ type Props = {
   busy?: boolean;
 };
 
-const STUDENTS_API = "http://localhost:4002/api/student/all"; // adjust to your actual route
+// Prefer environment-configured endpoints (adjust in Vite)
+const STUDENTS_API = import.meta.env.VITE_STUDENTS_API || "http://localhost:4002/api/student/all";
+const TOKEN_API = import.meta.env.VITE_TOKEN_API || ""; // e.g. "http://localhost:4000" -> GET ${TOKEN_API}/token
 
 export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
   const [clubName, setClubName] = useState("");
-  const [password, setPassword] = useState("");
+
+  // auth token state
+  const [accessToken, setAccessToken] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem("accessToken");
+    } catch {
+      return null;
+    }
+  });
+  const [fetchingToken, setFetchingToken] = useState(false);
 
   // search UI state
   const [query, setQuery] = useState("");
@@ -44,16 +55,63 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [highlightIndex, setHighlightIndex] = useState<number>(-1);
 
-  // fetch all students once on mount (suitable for small-medium lists)
+  // --- Obtain token if not already in sessionStorage ---
+  useEffect(() => {
+    let mounted = true;
+    const tryFetchToken = async () => {
+      if (accessToken) return; // already present
+
+      if (!TOKEN_API) {
+        // no token endpoint configured — proceed without token
+        return;
+      }
+
+      setFetchingToken(true);
+      try {
+        // backend endpoint should return { access_token: "..." } or { token: "..." }
+        const resp = await axios.get(`${TOKEN_API.replace(/\/$/, "")}/token`, { withCredentials: true });
+        const token = resp?.data?.access_token ?? resp?.data?.token ?? null;
+        if (mounted && token) {
+          try {
+            sessionStorage.setItem("accessToken", token);
+          } catch (e) {
+            console.warn("sessionStorage set failed", e);
+          }
+          setAccessToken(token);
+        }
+      } catch (err) {
+        console.warn("Token fetch failed — continuing without token", err);
+      } finally {
+        if (mounted) setFetchingToken(false);
+      }
+    };
+
+    tryFetchToken();
+    return () => {
+      mounted = false;
+    };
+  }, [accessToken]);
+
+  // Helper to build headers for student requests
+  const studentRequestHeaders = () => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    return headers;
+  };
+
+  // fetch all students once on mount (or when accessToken becomes available)
   useEffect(() => {
     let mounted = true;
     setLoadingStudents(true);
-    fetch(STUDENTS_API)
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to fetch students");
-        const body = await res.json();
 
-        // Try to find array in a few common shapes
+    axios
+      .get(STUDENTS_API, {
+        headers: studentRequestHeaders(),
+        withCredentials: true, // if your student API requires cookies, otherwise can be removed
+        timeout: 10000
+      })
+      .then((res) => {
+        const body = res.data;
         const maybeArray =
           Array.isArray(body)
             ? body
@@ -71,13 +129,16 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
         }
       })
       .catch((err) => {
-        console.error("fetch students error", err);
-        if (mounted) setLoadingStudents(false);
+        if (mounted) {
+          console.error("fetch students error", err?.response?.data ?? err.message ?? err);
+          setLoadingStudents(false);
+        }
       });
+
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [accessToken]); // re-run when token changes
 
   // client-side filtering (name / usn / email)
   const filtered = useMemo(() => {
@@ -96,14 +157,11 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
       .slice(0, 10);
   }, [students, query]);
 
-  // debounce opening dropdown when typing (but not force open after outside click)
+  // debounce dropdown
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     debounceRef.current = window.setTimeout(() => {
-      // only open if input is focused
-      if (document.activeElement === inputRef.current) {
-        setShowDropdown(true);
-      }
+      if (document.activeElement === inputRef.current) setShowDropdown(true);
       setHighlightIndex(-1);
     }, 200);
 
@@ -133,9 +191,7 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
   // keyboard navigation
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDropdown) {
-      if (e.key === "ArrowDown") {
-        setShowDropdown(true);
-      }
+      if (e.key === "ArrowDown") setShowDropdown(true);
       return;
     }
 
@@ -167,7 +223,6 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
     }
     const payload: ClubCreatePayload = {
       clubName,
-      password,
       members: [{ studentId: headStudentId, role: "Club Head" }],
     };
     onSubmit(payload);
@@ -225,7 +280,6 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
           aria-controls="club-head-dropdown"
         />
 
-        {/* selected preview & clear */}
         {headStudent && (
           <div className="mt-1 text-sm text-slate-700 flex items-center gap-2">
             <div>
@@ -283,18 +337,6 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
             )}
           </div>
         )}
-      </div>
-
-      <div>
-        <label className="text-xs text-slate-600">Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border px-3 py-2 text-sm"
-          required
-          minLength={8}
-        />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
