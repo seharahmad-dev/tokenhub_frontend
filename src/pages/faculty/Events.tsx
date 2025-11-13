@@ -1,134 +1,199 @@
-import { useEffect, useMemo, useState } from "react";
+// src/pages/faculty/Events.tsx
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import FacultyNavbar from "../../components/faculty/FacultyNavbar";
 import SectionCard from "../../components/common/SectionCard";
 import EmptyState from "../../components/common/EmptyState";
-import FacultyEventCard from "../../components/faculty/FacultyEventCard";
-import OrganizeEventModalFaculty from "../../components/faculty/OrganizeEventModalFaculty";
+import OrganizeEventModal from "../../components/faculty/OrganizeEventModalFaculty";
+import EventsMini from "../../components/student/EventsMini";
 
-type EventRow = {
-  _id: string;
-  title: string;
+const EVENT_API = import.meta.env.VITE_EVENT_API as string;
+const FACULTY_API = import.meta.env.VITE_FACULTY_API as string;
+
+type RawEvent = {
+  _id?: string;
+  id?: string;
+  eventId?: string;
+  title?: string;
+  name?: string;
   description?: string;
-  type?: string;
-  venue?: string;
   schedule?: string;
+  venue?: string;
   capacity?: number;
-  eligibility?: { branch?: string; semester?: string };
-  faculties?: any[];
-  organizers?: any[];
-  organizingBranch?: string;
-  permission?: string;
-  createdBy?: string;
+  faculties?: string[] | any[];
+  organisingFaculty?: string;
 };
 
-export default function FacultyEventsPage() {
-  const [me, setMe] = useState<any | null>(null);
-  const [events, setEvents] = useState<EventRow[]>([]);
+export default function FacultyEventsPage(): JSX.Element {
+  const [allEvents, setAllEvents] = useState<RawEvent[]>([]);
+  const [myEvents, setMyEvents] = useState<RawEvent[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filterMy, setFilterMy] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "mine">("all");
-  const [openModal, setOpenModal] = useState(false);
 
-  const EVENT_API = (import.meta.env.VITE_EVENT_API as string) || "";
   const token = useMemo(() => sessionStorage.getItem("accessToken") || "", []);
+  const auth = useMemo(
+    () => ({ headers: { Authorization: `Bearer ${token}` }, withCredentials: true }),
+    [token]
+  );
 
-  useEffect(() => {
+  const me = useMemo(() => {
     try {
       const raw = sessionStorage.getItem("user");
-      if (raw) setMe(JSON.parse(raw));
-      else setMe(null);
+      return raw ? JSON.parse(raw) : null;
     } catch {
-      setMe(null);
+      return null;
     }
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
+  const loadAll = useCallback(async () => {
+    try {
       setLoading(true);
       setErr(null);
-      try {
-        const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
-        const r = await axios.get(`${EVENT_API}/event/all`, auth);
-        const raw = r?.data?.data ?? r?.data ?? [];
-        const arr = Array.isArray(raw) ? raw : [];
-        if (mounted) setEvents(arr);
-      } catch (e: any) {
-        console.error("Failed to fetch events:", e);
-        if (mounted) setErr("Failed to load events");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    if (EVENT_API) load();
-    return () => { mounted = false; };
-  }, [EVENT_API, token]);
-
-  const myEvents = useMemo(() => {
-    if (!me) return [];
-    return events.filter((ev) => {
-      // check faculties array for this faculty id or email
-      if (Array.isArray(ev.faculties) && ev.faculties.length > 0) {
-        const set = new Set(ev.faculties.map((f: any) => (typeof f === "string" ? String(f) : String(f))));
-        if (set.has(String(me._id)) || set.has(String(me.email))) return true;
-      }
-      if (ev.createdBy && String(ev.createdBy) === String(me._id)) return true;
-      if (Array.isArray(ev.organizers) && ev.organizers.some((o: any) => String(o) === String(me._id) || String(o?.facultyId) === String(me._id))) return true;
-      return false;
-    });
-  }, [events, me]);
-
-  const shown = filter === "all" ? events : myEvents;
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this event? This action cannot be undone.")) return;
-    try {
-      const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
-      await axios.delete(`${EVENT_API}/event/${id}`, auth);
-      // refresh local list
-      setEvents((prev) => prev.filter((p) => p._id !== id));
-    } catch (err) {
-      console.error("Failed to delete event:", err);
-      alert("Failed to delete event. See console for details.");
+      const r = await axios.get(`${EVENT_API}/event/all`, auth);
+      const payload = r?.data?.data ?? r?.data ?? [];
+      setAllEvents(Array.isArray(payload) ? payload : []);
+    } catch (e) {
+      console.error("Failed to load events:", e);
+      setErr("Failed to load events");
+      setAllEvents([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [EVENT_API, auth]);
+
+  const loadMy = useCallback(async () => {
+    if (!me?._id) {
+      setMyEvents([]);
+      return;
+    }
+    try {
+      setLoading(true);
+      const r = await axios.get(`${FACULTY_API}/faculty/${encodeURIComponent(me._id)}/events`, auth);
+      const payload = r?.data?.data ?? r?.data ?? [];
+      setMyEvents(Array.isArray(payload) ? payload : []);
+    } catch (e) {
+      console.error("Failed to load my events:", e);
+      setMyEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [FACULTY_API, me?._id, auth]);
+
+  useEffect(() => {
+    loadAll();
+    loadMy();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // callback after successful create from modal
+  const onCreated = useCallback((created: any) => {
+    if (!created) return;
+    // created may be an object with _id etc
+    setMyEvents((s) => [created, ...s]);
+    setAllEvents((s) => [created, ...s]);
+  }, []);
+
+  const handleDelete = useCallback(
+    async (eventId: string) => {
+      if (!me?._id) {
+        alert("Faculty identity missing");
+        return;
+      }
+      const ok = confirm("Delete this event? This action cannot be undone.");
+      if (!ok) return;
+      try {
+        // endpoint per your backend contract:
+        await axios.delete(`${EVENT_API}/event/${encodeURIComponent(eventId)}/faculty/${encodeURIComponent(me._id)}`, auth);
+
+        setMyEvents((s) => s.filter((e) => {
+          const id = String(e._id ?? e.id ?? e.eventId ?? "");
+          return id !== String(eventId);
+        }));
+        setAllEvents((s) => s.filter((e) => {
+          const id = String(e._id ?? e.id ?? e.eventId ?? "");
+          return id !== String(eventId);
+        }));
+      } catch (error) {
+        console.error("Delete failed:", error);
+        alert("Failed to delete event");
+      }
+    },
+    [EVENT_API, me?._id, auth]
+  );
+
+  const displayed = filterMy ? myEvents : allEvents;
 
   return (
     <div className="min-h-screen bg-slate-50">
       <FacultyNavbar />
 
-      <main className="container 2xl:px-0 px-4 py-8">
-        <div className="max-w-[1000px] mx-auto space-y-6">
-          <SectionCard
-            title="Events"
-            action={
-              <div className="flex items-center gap-3">
-                <div className="text-sm text-slate-600">{events.length} events</div>
-                <button onClick={() => setOpenModal(true)} className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700">
-                  Organize Event
-                </button>
-              </div>
-            }
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <button onClick={() => setFilter("all")} className={`px-3 py-1 rounded ${filter === "all" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}>All events</button>
-              <button onClick={() => setFilter("mine")} className={`px-3 py-1 rounded ${filter === "mine" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}>My events</button>
-            </div>
+      <main className="container 2xl:px-0 px-4">
+        <div className="max-w-[1280px] mx-auto py-8">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-semibold">Events</h1>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setFilterMy((f) => !f)}
+                className={`px-3 py-2 rounded border text-sm ${filterMy ? "bg-blue-50" : ""}`}
+                title={filterMy ? "Show all events" : "Show only my organised events"}
+              >
+                {filterMy ? "Showing: My organised events" : "Showing: All events"}
+              </button>
 
+              <button
+                onClick={() => setModalOpen(true)}
+                className="px-3 py-2 rounded bg-blue-600 text-white text-sm"
+              >
+                Organise Event
+              </button>
+            </div>
+          </div>
+
+          <SectionCard title={filterMy ? "My organised events" : "All events"}>
             {loading ? (
-              <div className="p-6 text-center">Loading events…</div>
-            ) : err ? (
-              <div className="p-4 text-rose-600">{err}</div>
-            ) : shown.length === 0 ? (
-              <EmptyState title="No events" subtitle={filter === "mine" ? "You have not organized any events yet." : "No events available."} />
+              <div className="p-4 text-center">Loading…</div>
+            ) : displayed.length === 0 ? (
+              <EmptyState
+                title="No events"
+                subtitle={filterMy ? "You haven't organised any events yet." : "No events found."}
+              />
             ) : (
-              <div className="space-y-3">
-                {shown.map((ev) => {
-                  // allow manage/delete if faculty is organizer/creator
-                  const canManage = myEvents.some((m) => m._id === ev._id);
+              <div className="grid gap-3">
+                {displayed.map((ev: RawEvent) => {
+                  const id = String(ev._id ?? ev.id ?? ev.eventId ?? "");
+                  const title = ev.title ?? ev.name ?? "Untitled event";
+                  const isMy = Boolean(
+                    me &&
+                      (
+                        (Array.isArray(ev.faculties) && ev.faculties.map((f: any) => String(f)).includes(String(me._id)))
+                        || (ev.organisingFaculty && String(ev.organisingFaculty) === String(me._id))
+                      )
+                  );
+
                   return (
-                    <FacultyEventCard key={ev._id} e={ev as any} showManage={canManage} onManage={handleDelete} />
+                    <div key={id} className="rounded border bg-white p-3 flex justify-between items-start">
+                      <div>
+                        <div className="font-medium">{title}</div>
+                        <div className="text-xs text-slate-500 mt-1">{ev.description ?? ""}</div>
+                        <div className="text-xs text-slate-400 mt-2">{ev.schedule ? new Date(ev.schedule).toLocaleString() : ""}</div>
+                      </div>
+
+                      <div className="flex gap-2 items-start">
+                        {isMy && (
+                          <button
+                            onClick={() => handleDelete(id)}
+                            className="text-sm px-2 py-1 rounded border text-rose-600"
+                          >
+                            Delete
+                          </button>
+                        )}
+                        <a href={`/event/${encodeURIComponent(id)}`} className="text-sm px-2 py-1 rounded border text-slate-700">
+                          View
+                        </a>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -137,10 +202,7 @@ export default function FacultyEventsPage() {
         </div>
       </main>
 
-      <OrganizeEventModalFaculty open={openModal} onClose={() => setOpenModal(false)} onCreated={(ev) => {
-        // append created event to events list
-        if (ev) setEvents((prev) => [ev, ...prev]);
-      }} />
+      <OrganizeEventModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={onCreated} />
     </div>
   );
 }
