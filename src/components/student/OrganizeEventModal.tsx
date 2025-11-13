@@ -1,5 +1,7 @@
+// src/components/faculty/OrganizeEventModal.tsx
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useAppSelector } from "../../app/hooks"; // your app hook to access redux
 
 const CLUB_API = import.meta.env.VITE_CLUB_API as string;
 const EVENT_API = import.meta.env.VITE_EVENT_API as string;
@@ -29,7 +31,7 @@ export default function OrganizeEventModal({
   const [venue, setVenue] = useState("");
   const [schedule, setSchedule] = useState("");
   const [capacity, setCapacity] = useState<number | "">("");
-  const [branch, setBranch] = useState("*");
+  const [eligibilityBranch, setEligibilityBranch] = useState("*");
   const [semester, setSemester] = useState("*");
   const [selectedCoordinators, setSelectedCoordinators] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -38,6 +40,9 @@ export default function OrganizeEventModal({
     () => ({ headers: { Authorization: token ? `Bearer ${token}` : `Bearer ${sessionStorage.getItem("accessToken") || ""}` }, withCredentials: true }),
     [token]
   );
+
+  // read student branch from Redux (if logged-in user is a student)
+  const studentBranch = useAppSelector((state: any) => state?.student?.student?.branch ?? "");
 
   useEffect(() => {
     if (!open) return;
@@ -82,18 +87,20 @@ export default function OrganizeEventModal({
 
     setSubmitting(true);
     try {
-      const payload = {
+      const payload: any = {
         title: title.trim(),
         description: description.trim(),
         type,
         venue: venue.trim(),
         schedule: new Date(schedule).toISOString(),
         capacity: Number(capacity),
-        eligibility: { branch, semester },
+        // eligibility is chosen by the form user
+        eligibility: { branch: eligibilityBranch, semester },
         coordinators: selectedCoordinators.map((s) => ({ studentId: s })),
+        // organise branch: pick studentBranch if present and not "*", else send empty string so backend can fallback
+        organisingBranch: studentBranch && studentBranch !== "*" ? String(studentBranch) : "",
       };
 
-      // Use the correct endpoint you specified:
       const res = await axios.post(`${EVENT_API}/event/club/${clubId}/create`, payload, auth);
       const created = res?.data?.data ?? res?.data ?? null;
       onCreated?.(created);
@@ -139,7 +146,7 @@ export default function OrganizeEventModal({
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
-            <select value={branch} onChange={(e) => setBranch(e.target.value)} className="rounded border px-3 py-2">
+            <select value={eligibilityBranch} onChange={(e) => setEligibilityBranch(e.target.value)} className="rounded border px-3 py-2">
               <option value="*">All Branches</option>
               <option value="CSE">CSE</option>
               <option value="ISE">ISE</option>
