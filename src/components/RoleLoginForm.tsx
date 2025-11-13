@@ -1,3 +1,4 @@
+// components/RoleLoginForm.tsx
 import { useMemo, useState, useEffect } from "react";
 import PasswordCriteria from "./PasswordCriteria";
 
@@ -6,7 +7,8 @@ import { useNavigate } from "react-router-dom";
 
 import { useAppDispatch } from "../app/hooks";
 import { setCredentials } from "../app/authSlice";
-import { setStudent } from "../app/studentSlice"; // <<-- ADDED
+import { setStudent } from "../app/studentSlice";
+import { setFaculty } from "../app/facultySlice"; // adjust path if needed
 
 type Role = "Student" | "Faculty" | "HOD" | "Admin";
 
@@ -34,7 +36,6 @@ export default function RoleLoginForm({
     try {
       const u = JSON.parse(raw);
       if (u?.role?.toLowerCase?.() === role.toLowerCase()) {
-        // role matches; go to their landing page
         navigate(`/${role.toLowerCase()}`, { replace: true });
       }
     } catch {
@@ -62,6 +63,7 @@ export default function RoleLoginForm({
         return import.meta.env.VITE_API_BASE ?? "";
     }
   };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -80,20 +82,14 @@ export default function RoleLoginForm({
         }
       );
 
-      // convenient alias
       const resp = res.data;
 
-      // Expecting: resp.data === [{ token: '...', }, { user: { ... } }]
-      // token:
       let accessToken =
         resp?.data?.[0]?.token ?? resp?.token ?? resp?.accessToken;
 
-      // user:
       let user = resp?.data?.[1]?.user ?? resp?.user ?? resp?.data;
 
-      // If server didn't return token where we expect, try fallback checks:
       if (!accessToken) {
-        // Try to find token anywhere in the data array
         if (Array.isArray(resp?.data)) {
           const found = resp.data.find((it: any) => it && it.token);
           accessToken = found?.token;
@@ -105,20 +101,17 @@ export default function RoleLoginForm({
         throw new Error("No access token received from server");
       }
 
-      // Sanitize user (defensive)
       let safeUser: any = null;
       if (user && typeof user === "object") {
         safeUser = { ...user };
         delete safeUser.password;
         delete safeUser.refreshTokens;
 
-        // normalize id field: prefer _id but allow id
         if (!safeUser._id && safeUser.id) {
           safeUser._id = safeUser.id;
           delete safeUser.id;
         }
 
-        // ensure role exists on the safeUser (fallback to current selected role)
         if (!safeUser.role) safeUser.role = role;
       }
 
@@ -129,9 +122,14 @@ export default function RoleLoginForm({
       // update redux (auth)
       dispatch(setCredentials({ user: safeUser, token: accessToken }));
 
-      // important: update student slice too when logging in as Student
+      // update student slice when logging in as Student
       if (role === "Student" && safeUser) {
         dispatch(setStudent(safeUser));
+      }
+
+      // update faculty slice when logging in as Faculty or HOD
+      if ((role === "Faculty" || role === "HOD") && safeUser) {
+        dispatch(setFaculty(safeUser));
       }
 
       // route to landing
@@ -174,7 +172,6 @@ export default function RoleLoginForm({
         </div>
       </div>
 
-      {/* email criteria – only when focused */}
       {focus === "email" && (
         <div className="mt-2 text-sm flex items-center gap-2">
           <span
@@ -218,7 +215,6 @@ export default function RoleLoginForm({
         </a>
       </div>
 
-      {/* password criteria – only when focused */}
       <PasswordCriteria value={password} visible={focus === "password"} />
 
       <button
