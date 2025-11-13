@@ -29,6 +29,7 @@ import EventPaymentPage from "./pages/student/EventPaymentPage";
 import FacultyDashboard from "./pages/faculty/Dashboard";
 import FacultyEventsPage from "./pages/faculty/Events";
 import HodPanel from "./pages/faculty/HodPanel";
+import EventManageWinners from "./pages/student/EventManageWinners";
 
 export default function App() {
   return (
@@ -58,12 +59,14 @@ export default function App() {
         <Route path="/student/leaderboard" element={<LeaderboardPage />} />
         <Route path="/student/profile" element={<ProfilePage />} />
         <Route path="/student/manage-club" element={<ManageClubPage />} />
+        <Route path="/student/event/:id" element={<EventManageWinners />} />
         <Route path="/student/register-team" element={<RegisterTeam />} />
         <Route path="/student/events/:id/register" element={<EventRegisterPage />} />
         <Route path="/student/events/:id/payment" element={<EventPaymentPage />} />
         <Route path="/faculty" element={<FacultyDashboard />} />
         <Route path="/faculty/events" element={<FacultyEventsPage />} />
         <Route path="/faculty/hod-panel" element={<HodPanel />} />
+
       </Routes>
     </BrowserRouter>
   );

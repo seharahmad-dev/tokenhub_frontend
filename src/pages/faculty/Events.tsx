@@ -1,11 +1,9 @@
-// src/pages/faculty/Events.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import FacultyNavbar from "../../components/faculty/FacultyNavbar";
 import SectionCard from "../../components/common/SectionCard";
 import EmptyState from "../../components/common/EmptyState";
 import OrganizeEventModal from "../../components/faculty/OrganizeEventModalFaculty";
-import EventsMini from "../../components/student/EventsMini";
 
 const EVENT_API = import.meta.env.VITE_EVENT_API as string;
 const FACULTY_API = import.meta.env.VITE_FACULTY_API as string;
@@ -22,7 +20,19 @@ type RawEvent = {
   capacity?: number;
   faculties?: string[] | any[];
   organisingFaculty?: string;
+  permission?: string | null;
 };
+
+function isApproved(ev: RawEvent | null | undefined) {
+  if (!ev) return false;
+  const p = String(ev.permission ?? "").toLowerCase();
+  return p === "approved";
+}
+
+function filterApproved(arr: any[]) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((x) => isApproved(x));
+}
 
 export default function FacultyEventsPage(): JSX.Element {
   const [allEvents, setAllEvents] = useState<RawEvent[]>([]);
@@ -30,7 +40,7 @@ export default function FacultyEventsPage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [filterMy, setFilterMy] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [, setErr] = useState<string | null>(null);
 
   const token = useMemo(() => sessionStorage.getItem("accessToken") || "", []);
   const auth = useMemo(
@@ -53,7 +63,7 @@ export default function FacultyEventsPage(): JSX.Element {
       setErr(null);
       const r = await axios.get(`${EVENT_API}/event/all`, auth);
       const payload = r?.data?.data ?? r?.data ?? [];
-      setAllEvents(Array.isArray(payload) ? payload : []);
+      setAllEvents(filterApproved(Array.isArray(payload) ? payload : []));
     } catch (e) {
       console.error("Failed to load events:", e);
       setErr("Failed to load events");
@@ -72,7 +82,7 @@ export default function FacultyEventsPage(): JSX.Element {
       setLoading(true);
       const r = await axios.get(`${FACULTY_API}/faculty/${encodeURIComponent(me._id)}/events`, auth);
       const payload = r?.data?.data ?? r?.data ?? [];
-      setMyEvents(Array.isArray(payload) ? payload : []);
+      setMyEvents(filterApproved(Array.isArray(payload) ? payload : []));
     } catch (e) {
       console.error("Failed to load my events:", e);
       setMyEvents([]);
@@ -90,9 +100,11 @@ export default function FacultyEventsPage(): JSX.Element {
   // callback after successful create from modal
   const onCreated = useCallback((created: any) => {
     if (!created) return;
-    // created may be an object with _id etc
-    setMyEvents((s) => [created, ...s]);
-    setAllEvents((s) => [created, ...s]);
+    // only add created event to lists if it's approved
+    if (isApproved(created)) {
+      setMyEvents((s) => [created, ...s]);
+      setAllEvents((s) => [created, ...s]);
+    }
   }, []);
 
   const handleDelete = useCallback(
