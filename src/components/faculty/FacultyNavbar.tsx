@@ -35,9 +35,7 @@ export default function FacultyNavbar() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  const isHod =
-    (faculty?.designation && faculty.designation.toString().toLowerCase().includes("hod")) ||
-    (faculty?.role && faculty.role.toString().toLowerCase() === "hod");
+  const isHod = faculty.isHod;
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
