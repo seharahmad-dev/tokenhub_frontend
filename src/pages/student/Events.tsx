@@ -59,7 +59,11 @@ export default function Events() {
         if (!mounted) return;
 
         const rows: EventRow[] = eventRes.data?.data ?? eventRes.data ?? [];
-        setEvents(rows);
+
+        // <-- NEW: only keep events that are explicitly Approved
+        const approvedEvents = rows.filter((r) => String(r.permission ?? "").toLowerCase() === "approved");
+
+        setEvents(approvedEvents);
 
         // Preserve fallback local storage ids (if you still want them)
         const localRegistered = JSON.parse(sessionStorage.getItem("registeredEventIds") || "[]");
