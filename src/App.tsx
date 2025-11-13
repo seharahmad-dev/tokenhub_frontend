@@ -28,6 +28,7 @@ import EventRegisterPage from "./pages/student/EventRegisterPage";
 import EventPaymentPage from "./pages/student/EventPaymentPage";
 import FacultyDashboard from "./pages/faculty/Dashboard";
 import FacultyEventsPage from "./pages/faculty/Events";
+import HodPanel from "./pages/faculty/HodPanel";
 
 export default function App() {
   return (
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/student/events/:id/payment" element={<EventPaymentPage />} />
         <Route path="/faculty" element={<FacultyDashboard />} />
         <Route path="/faculty/events" element={<FacultyEventsPage />} />
+        <Route path="/faculty/hod-panel" element={<HodPanel />} />
       </Routes>
     </BrowserRouter>
   );
