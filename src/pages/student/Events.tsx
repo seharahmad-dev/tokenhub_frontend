@@ -4,10 +4,23 @@ import StudentNavbar from "../../components/student/StudentNavbar";
 import SectionCard from "../../components/common/SectionCard";
 import EmptyState from "../../components/common/EmptyState";
 import EventCard, { EventRow } from "../../components/student/EventCard";
+import { useAppSelector } from "../../app/hooks";
+import { selectStudent } from "../../app/studentSlice";
 
 const EVENT_API = import.meta.env.VITE_EVENT_API as string;
+const REGISTRATION_API = import.meta.env.VITE_REGISTRATION_API as string;
 
 type FilterKey = "upcoming" | "past" | "mine";
+
+type RegistrationRow = {
+  _id: string;
+  eventId: string;
+  teamName?: string;
+  participantsId?: string[];
+  teamLeaderId?: string;
+  paymentId?: string;
+  // ...other fields if needed
+};
 
 export default function Events() {
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -16,44 +29,73 @@ export default function Events() {
   const [filter, setFilter] = useState<FilterKey>("upcoming");
 
   const token = useMemo(() => sessionStorage.getItem("accessToken") || "", []);
+  const student = useAppSelector(selectStudent);
 
-  // Placeholder sources for "my events"
-  // If you later add a real participation API, populate this Set from it.
+  // Set of event IDs that the student has registered or participated in.
   const [myEventIds, setMyEventIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
 
     async function load() {
-      try {
-        setLoading(true);
-        setErr(null);
+      if (!mounted) return;
+      setLoading(true);
+      setErr(null);
 
-        const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
-        const res = await axios.get(`${EVENT_API}/event/all`, auth);
-        const rows: EventRow[] = res.data?.data ?? res.data ?? [];
+      const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
+
+      try {
+        // Fetch events and (if we have a student) registrations for that student.
+        const eventReq = axios.get(`${EVENT_API}/event/all`, auth);
+
+        // Registration endpoint per your router: GET /:id (so assume base /registration)
+        const regReq =
+          student && student._id
+            ? axios.get(`${REGISTRATION_API}/registrations/student/${student._id}`, auth)
+            : Promise.resolve({ data: [] });
+
+        const [eventRes, regRes] = await Promise.all([eventReq, regReq]);
 
         if (!mounted) return;
 
-        // local placeholder: look for any stored "registered/participated" ids
+        const rows: EventRow[] = eventRes.data?.data ?? eventRes.data ?? [];
+        setEvents(rows);
+
+        // Build set of registered/participated IDs:
         const localRegistered = JSON.parse(sessionStorage.getItem("registeredEventIds") || "[]");
         const localParticipated = JSON.parse(sessionStorage.getItem("participatedEventIds") || "[]");
+
         const mine = new Set<string>([...localRegistered, ...localParticipated]);
 
+        // regRes may be an array (list of registration docs) or an object containing data
+        const regData: RegistrationRow[] =
+          regRes?.data?.data ??
+          regRes?.data ??
+          [];
+
+        if (Array.isArray(regData)) {
+          for (const r of regData) {
+            if (r?.eventId) mine.add(String(r.eventId));
+          }
+        } else if (regData && typeof regData === "object") {
+          // In case the endpoint returns single registration object
+          mine.add(String((regData as any).eventId));
+        }
+
         setMyEventIds(mine);
-        setEvents(rows);
       } catch (e: any) {
-        setErr(e?.response?.data?.message || "Failed to fetch events");
+        setErr(e?.response?.data?.message || "Failed to fetch events/registrations");
       } finally {
         if (mounted) setLoading(false);
       }
     }
 
     load();
+
     return () => {
       mounted = false;
     };
-  }, [token]);
+  }, [token, student]);
 
   const now = Date.now();
   const isPast = (isoOrDate: string | Date) => {
@@ -72,9 +114,9 @@ export default function Events() {
 
     if (filter === "upcoming") return list.filter((e) => e.schedule && !isPast(e.schedule));
     if (filter === "past") return list.filter((e) => e.schedule && isPast(e.schedule));
-    // "mine": registered/participated placeholder
+
     return list.filter((e) => myEventIds.has(e._id));
-  }, [events, filter]);
+  }, [events, filter, myEventIds]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -131,7 +173,6 @@ export default function Events() {
                     participated={myEventIds.has(e._id) || (e.schedule ? isPast(e.schedule) : false)}
                   />
                 ))}
-
               </div>
             )}
           </SectionCard>

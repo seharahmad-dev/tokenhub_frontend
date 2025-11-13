@@ -108,7 +108,7 @@ export default function StudentDashboard() {
         // 3) registrations -> events participated
         try {
           const studentIdentifier = profile._id || profile.email;
-          const r = await axios.get(`${REG_API}/registration/${encodeURIComponent(studentIdentifier)}`, auth);
+          const r = await axios.get(`${REG_API}/registrations/${encodeURIComponent(studentIdentifier)}`, auth);
           const regs = r?.data?.data ?? r?.data ?? [];
           const evList: EventRow[] = [];
           for (const reg of regs) {

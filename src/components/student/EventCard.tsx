@@ -102,7 +102,7 @@ export default function EventCard({
           <div className="text-slate-600">
             <span className="inline-block w-24 text-slate-500">Eligibility:</span>
             <b>
-              {e.eligibility.branch ?? "*"} • Sem {e.eligibility.semester ?? "*"}
+              {e.eligibility.branch ?? ""} • Sem {e.eligibility.semester ?? ""}
             </b>
           </div>
         )}
