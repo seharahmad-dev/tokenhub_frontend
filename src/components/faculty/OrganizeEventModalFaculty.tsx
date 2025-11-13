@@ -1,6 +1,7 @@
 // src/components/faculty/OrganizeEventModal.tsx
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useAppSelector } from "../../app/hooks";
 
 const CLUB_API = import.meta.env.VITE_CLUB_API as string;
 const EVENT_API = import.meta.env.VITE_EVENT_API as string;
@@ -31,7 +32,8 @@ export default function OrganizeEventModal({
     const [venue, setVenue] = useState("");
     const [schedule, setSchedule] = useState("");
     const [capacity, setCapacity] = useState<number | "">("");
-    const [branch, setBranch] = useState("*");
+    // eligibilityBranch is separate from organisingBranch (user chooses eligibility)
+    const [eligibilityBranch, setEligibilityBranch] = useState("*");
     const [semester, setSemester] = useState("*");
     const [selectedCoordinators, setSelectedCoordinators] = useState<string[]>([]);
     const [submitting, setSubmitting] = useState(false);
@@ -41,34 +43,29 @@ export default function OrganizeEventModal({
         [token]
     );
 
-    // robust extraction of faculty id from sessionStorage
+    // Read organising branch from faculty slice (do not use it for eligibility)
+    const organisingBranchFromRedux = useAppSelector((state: any) => state?.faculty?.faculty?.branch ?? "");
+
+    // robust extraction of faculty id from sessionStorage (keeps existing behavior)
     function getFacultyIdFromSession(): string | null {
         try {
             const raw = sessionStorage.getItem("user");
             if (!raw) return null;
             const parsed = JSON.parse(raw);
 
-            // Many possible shapes:
-            // 1) parsed is the user object { _id: "...", ... }
             if (parsed && (parsed._id || parsed.id)) return String(parsed._id ?? parsed.id);
 
-            // 2) parsed might be an array returned by some login responses: [{ token... }, { user: {...} }]
             if (Array.isArray(parsed)) {
-                // try to find first element that looks like user object
                 for (const p of parsed) {
                     if (p && (p._id || p.id)) return String(p._id ?? p.id);
-                    // nested: { user: {...} }
                     if (p && p.user && (p.user._id || p.user.id)) return String(p.user._id ?? p.user.id);
                 }
             }
 
-            // 3) parsed might be an object with a `user` field: { user: { _id: ".."} }
             if (parsed.user && (parsed.user._id || parsed.user.id)) return String(parsed.user._id ?? parsed.user.id);
 
-            // 4) parsed might be { data: { user: {...} } }
             if (parsed.data && parsed.data.user && (parsed.data.user._id || parsed.data.user.id)) return String(parsed.data.user._id ?? parsed.data.user.id);
 
-            // fallback: try to find any prop that looks like _id
             for (const k of Object.keys(parsed)) {
                 const v = (parsed as any)[k];
                 if (v && typeof v === "object" && (v._id || v.id)) return String(v._id ?? v.id);
@@ -115,14 +112,14 @@ export default function OrganizeEventModal({
 
     useEffect(() => {
         if (!open) return;
-        // reset form on open
+        // reset form on open (organisingBranch comes from redux; eligibility reset locally)
         setTitle("");
         setDescription("");
         setType("Workshop");
         setVenue("");
         setSchedule("");
         setCapacity("");
-        setBranch("*");
+        setEligibilityBranch("*");
         setSemester("*");
         setSelectedCoordinators([]);
         setError(null);
@@ -153,15 +150,15 @@ export default function OrganizeEventModal({
             venue: venue.trim(),
             schedule: new Date(schedule).toISOString(),
             capacity: Number(capacity),
-            eligibility: { branch, semester },
+            // eligibility is user-selected and separate
+            eligibility: { branch: eligibilityBranch, semester },
             coordinators: selectedCoordinators.map((s) => ({ studentId: s })),
-            actorId: actorId, 
+            actorId: actorId,
+            // sending organisingBranch from faculty redux; if it's "*" or falsy send empty string so server can fallback
+            organisingBranch: organisingBranchFromRedux && organisingBranchFromRedux !== "*" ? String(organisingBranchFromRedux) : "",
         };
 
-        // small debug log so you can inspect payload in browser console
-        // remove or comment out in production if desired
         console.log("OrganizeEventModal: sending payload:", payload, "clubId:", clubId);
-        console.log("Organize");
 
         setSubmitting(true);
         try {
@@ -170,8 +167,7 @@ export default function OrganizeEventModal({
                 // club-backed event
                 res = await axios.post(`${EVENT_API}/event/club/${clubId}/create`, payload, auth);
             } else {
-                // faculty-created event -> POST to club/random (server treats 'random' as faculty or you can define a dedicated faculty route)
-                // per your instruction we use the 'random' approach if clubId not present.
+                // faculty-created event -> use 'random' club placeholder per your backend
                 res = await axios.post(`${EVENT_API}/event/club/random/create`, payload, auth);
             }
 
@@ -228,12 +224,14 @@ export default function OrganizeEventModal({
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-3">
-                        <select value={branch} onChange={(e) => setBranch(e.target.value)} className="rounded border px-3 py-2">
+                        {/* Eligibility branch — user selectable and NOT tied to faculty branch */}
+                        <select value={eligibilityBranch} onChange={(e) => setEligibilityBranch(e.target.value)} className="rounded border px-3 py-2">
                             <option value="*">All Branches</option>
                             <option value="CSE">CSE</option>
                             <option value="ISE">ISE</option>
                             <option value="EC">EC</option>
                         </select>
+
                         <select value={semester} onChange={(e) => setSemester(e.target.value)} className="rounded border px-3 py-2">
                             <option value="*">All Semesters</option>
                             <option value="1">1</option>

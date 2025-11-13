@@ -1,29 +1,23 @@
 import { useRef, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { useAppSelector } from "../../app/hooks";
+import { selectFaculty } from "../../app/facultySlice";
 
 type NavItem = { label: string; href: string };
+
 const LINKS: NavItem[] = [
   { label: "Events", href: "/faculty/events" },
   { label: "Leaderboard", href: "/faculty/leaderboard" },
   { label: "Students", href: "/faculty/students" },
 ];
 
-function loadFacultyFromSession() {
-  try {
-    const raw = sessionStorage.getItem("user");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 export default function FacultyNavbar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
   const location = useLocation();
-  const faculty = loadFacultyFromSession();
+
+  // 🔥 Fetch faculty from Redux (NOT from sessionStorage)
+  const faculty = useAppSelector(selectFaculty);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -35,9 +29,7 @@ export default function FacultyNavbar() {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  const isHod =
-    (faculty?.designation && faculty.designation.toString().toLowerCase().includes("hod")) ||
-    (faculty?.role && faculty.role.toString().toLowerCase() === "hod");
+  const isHod = faculty?.isHod 
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
@@ -70,14 +62,16 @@ export default function FacultyNavbar() {
             ))}
 
             {isHod && (
-              <a href="/faculty/hod-panel" className="ml-4 rounded-md bg-rose-600 px-3 py-1.5 text-white text-sm font-medium hover:bg-rose-700">
+              <a
+                href="/faculty/hod-panel"
+                className="ml-4 rounded-md bg-rose-600 px-3 py-1.5 text-white text-sm font-medium hover:bg-rose-700"
+              >
                 HOD Panel
               </a>
             )}
           </nav>
 
           <div className="flex items-center gap-3">
-            {/* Profile dropdown */}
             <div className="relative" ref={profileRef}>
               <button
                 onClick={() => setProfileOpen((v) => !v)}
@@ -89,8 +83,15 @@ export default function FacultyNavbar() {
 
               {profileOpen && (
                 <div className="absolute right-0 mt-2 w-48 rounded-xl border bg-white shadow-lg">
-                  <a href="/faculty/profile" className="block px-3 py-2 text-sm hover:bg-slate-50">Your Profile</a>
-                  <button onClick={logout} className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50">Logout</button>
+                  <a href="/faculty/profile" className="block px-3 py-2 text-sm hover:bg-slate-50">
+                    Your Profile
+                  </a>
+                  <button
+                    onClick={logout}
+                    className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                  >
+                    Logout
+                  </button>
                 </div>
               )}
             </div>
