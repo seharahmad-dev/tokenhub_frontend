@@ -16,10 +16,11 @@ type RegistrationRow = {
   _id: string;
   eventId: string;
   teamName?: string;
-  participantsId?: string[];
+  participantsId?: string[]; // not used for determining real participants
   teamLeaderId?: string;
   paymentId?: string;
-  // ...other fields if needed
+  verifiedUsers?: string[];
+  date?: string;
 };
 
 export default function Events() {
@@ -31,8 +32,8 @@ export default function Events() {
   const token = useMemo(() => sessionStorage.getItem("accessToken") || "", []);
   const student = useAppSelector(selectStudent);
 
-  // Set of event IDs that the student has registered or participated in.
-  const [myEventIds, setMyEventIds] = useState<Set<string>>(new Set());
+  // Set of event IDs that the student has registered (based on teamLeaderId or verifiedUsers)
+  const [registeredEventIds, setRegisteredEventIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -45,10 +46,9 @@ export default function Events() {
       const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
 
       try {
-        // Fetch events and (if we have a student) registrations for that student.
         const eventReq = axios.get(`${EVENT_API}/event/all`, auth);
 
-        // Registration endpoint per your router: GET /:id (so assume base /registration)
+        // keep your existing registration path — returns list of registrations for this student
         const regReq =
           student && student._id
             ? axios.get(`${REGISTRATION_API}/registrations/student/${student._id}`, auth)
@@ -61,13 +61,13 @@ export default function Events() {
         const rows: EventRow[] = eventRes.data?.data ?? eventRes.data ?? [];
         setEvents(rows);
 
-        // Build set of registered/participated IDs:
+        // Preserve fallback local storage ids (if you still want them)
         const localRegistered = JSON.parse(sessionStorage.getItem("registeredEventIds") || "[]");
         const localParticipated = JSON.parse(sessionStorage.getItem("participatedEventIds") || "[]");
 
         const mine = new Set<string>([...localRegistered, ...localParticipated]);
 
-        // regRes may be an array (list of registration docs) or an object containing data
+        // Normalize registration response
         const regData: RegistrationRow[] =
           regRes?.data?.data ??
           regRes?.data ??
@@ -75,14 +75,27 @@ export default function Events() {
 
         if (Array.isArray(regData)) {
           for (const r of regData) {
-            if (r?.eventId) mine.add(String(r.eventId));
+            if (!r || !r.eventId) continue;
+            const leaderMatches = !!student && !!r.teamLeaderId && String(r.teamLeaderId) === String(student._id);
+            const verifiedMatches =
+              !!student &&
+              Array.isArray(r.verifiedUsers) &&
+              r.verifiedUsers.some((id) => String(id) === String(student._id));
+
+            if (leaderMatches || verifiedMatches) {
+              mine.add(String(r.eventId));
+            }
           }
         } else if (regData && typeof regData === "object") {
-          // In case the endpoint returns single registration object
-          mine.add(String((regData as any).eventId));
+          // single object case (defensive)
+          const r = regData as RegistrationRow;
+          const leaderMatches = !!student && !!r.teamLeaderId && String(r.teamLeaderId) === String(student._id);
+          const verifiedMatches =
+            !!student && Array.isArray(r.verifiedUsers) && r.verifiedUsers.some((id) => String(id) === String(student._id));
+          if (leaderMatches || verifiedMatches) mine.add(String(r.eventId));
         }
 
-        setMyEventIds(mine);
+        setRegisteredEventIds(mine);
       } catch (e: any) {
         setErr(e?.response?.data?.message || "Failed to fetch events/registrations");
       } finally {
@@ -108,15 +121,14 @@ export default function Events() {
     const list = [...events].sort((a, b) => {
       const da = new Date(a.schedule ?? 0).getTime();
       const db = new Date(b.schedule ?? 0).getTime();
-      // recent first overall
-      return db - da;
+      return db - da; // recent first
     });
 
     if (filter === "upcoming") return list.filter((e) => e.schedule && !isPast(e.schedule));
     if (filter === "past") return list.filter((e) => e.schedule && isPast(e.schedule));
 
-    return list.filter((e) => myEventIds.has(e._id));
-  }, [events, filter, myEventIds]);
+    return list.filter((e) => registeredEventIds.has(e._id));
+  }, [events, filter, registeredEventIds]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -170,7 +182,8 @@ export default function Events() {
                   <EventCard
                     key={e._id}
                     e={e}
-                    participated={myEventIds.has(e._id) || (e.schedule ? isPast(e.schedule) : false)}
+                    // mark as participated if registered OR schedule is past
+                    participated={registeredEventIds.has(e._id) || (e.schedule ? isPast(e.schedule) : false)}
                   />
                 ))}
               </div>
