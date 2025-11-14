@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useAppSelector } from "../../app/hooks";
+import { selectFaculty } from "../../app/facultySlice";
 
 const CLUB_API = import.meta.env.VITE_CLUB_API as string;
 const EVENT_API = import.meta.env.VITE_EVENT_API as string;
@@ -46,6 +47,9 @@ export default function OrganizeEventModal({
     // Read organising branch from faculty slice (do not use it for eligibility)
     const organisingBranchFromRedux = useAppSelector((state: any) => state?.faculty?.faculty?.branch ?? "");
 
+    // Try to read faculty object from redux (prefer this for faculty id)
+    const facultyFromRedux = useAppSelector((state: any) => selectFaculty(state as any) ?? state?.faculty?.faculty ?? null);
+
     // robust extraction of faculty id from sessionStorage (keeps existing behavior)
     function getFacultyIdFromSession(): string | null {
         try {
@@ -77,6 +81,12 @@ export default function OrganizeEventModal({
             return null;
         }
     }
+
+    // Derived faculty id (prefer redux, fallback to session)
+    const facultyId = useMemo(() => {
+        const idFromRedux = (facultyFromRedux && (facultyFromRedux._id || facultyFromRedux.id)) ? String(facultyFromRedux._id ?? facultyFromRedux.id) : null;
+        return idFromRedux ?? getFacultyIdFromSession();
+    }, [facultyFromRedux]);
 
     useEffect(() => {
         if (!open) return;
@@ -156,6 +166,8 @@ export default function OrganizeEventModal({
             actorId: actorId,
             // sending organisingBranch from faculty redux; if it's "*" or falsy send empty string so server can fallback
             organisingBranch: organisingBranchFromRedux && organisingBranchFromRedux !== "*" ? String(organisingBranchFromRedux) : "",
+            // include current faculty id in faculties (if available)
+            faculties: facultyId ? [String(facultyId)] : [],
         };
 
         console.log("OrganizeEventModal: sending payload:", payload, "clubId:", clubId);

@@ -43,7 +43,7 @@ export default function FacultyEventsList({
 
   return (
     <div className="space-y-3">
-      {events.map((ev) => (
+      {events.map((ev) => (        
         <EventCard key={ev._id} e={ev as any} participated={false} />
       ))}
     </div>

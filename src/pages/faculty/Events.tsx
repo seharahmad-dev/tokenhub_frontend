@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useAppSelector } from "../../app/hooks";
+import { selectFaculty } from "../../app/facultySlice";
 import FacultyNavbar from "../../components/faculty/FacultyNavbar";
 import SectionCard from "../../components/common/SectionCard";
 import EmptyState from "../../components/common/EmptyState";
@@ -35,6 +37,7 @@ function filterApproved(arr: any[]) {
 }
 
 export default function FacultyEventsPage(): JSX.Element {
+  const facultyFromRedux = useAppSelector((s: any) => selectFaculty(s as any));
   const [allEvents, setAllEvents] = useState<RawEvent[]>([]);
   const [myEvents, setMyEvents] = useState<RawEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,13 +52,14 @@ export default function FacultyEventsPage(): JSX.Element {
   );
 
   const me = useMemo(() => {
+    if (facultyFromRedux) return facultyFromRedux;
     try {
       const raw = sessionStorage.getItem("user");
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
-  }, []);
+  }, [facultyFromRedux]);
 
   const loadAll = useCallback(async () => {
     try {
@@ -73,23 +77,35 @@ export default function FacultyEventsPage(): JSX.Element {
     }
   }, [EVENT_API, auth]);
 
+  // load my events using new faculty endpoint
   const loadMy = useCallback(async () => {
-    if (!me?._id) {
+    const facultyId = me?._id ?? "";
+    if (!facultyId) {
       setMyEvents([]);
       return;
     }
     try {
       setLoading(true);
-      const r = await axios.get(`${FACULTY_API}/faculty/${encodeURIComponent(me._id)}/events`, auth);
+      const r = await axios.get(`${FACULTY_API}/faculty/${encodeURIComponent(facultyId)}/events`, auth);
       const payload = r?.data?.data ?? r?.data ?? [];
-      setMyEvents(filterApproved(Array.isArray(payload) ? payload : []));
+      // if payload are IDs -> attempt resolution, otherwise use objects
+      if (Array.isArray(payload) && payload.length > 0 && typeof payload[0] === "string") {
+        const base = EVENT_API.replace(/\/+$/, "");
+        const fetches = payload.map((id: string) =>
+          axios.get(`${EVENT_API}/event/${encodeURIComponent(id)}/event`, auth).then((res) => res?.data?.data ?? res?.data).catch(() => null)
+        );
+        const resolved = await Promise.all(fetches);
+        setMyEvents(filterApproved(resolved.filter(Boolean) as any[]));
+      } else {
+        setMyEvents(filterApproved(Array.isArray(payload) ? payload : []));
+      }
     } catch (e) {
       console.error("Failed to load my events:", e);
       setMyEvents([]);
     } finally {
       setLoading(false);
     }
-  }, [FACULTY_API, me?._id, auth]);
+  }, [FACULTY_API, me?._id, auth, EVENT_API]);
 
   useEffect(() => {
     loadAll();
@@ -97,10 +113,8 @@ export default function FacultyEventsPage(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // callback after successful create from modal
   const onCreated = useCallback((created: any) => {
     if (!created) return;
-    // only add created event to lists if it's approved
     if (isApproved(created)) {
       setMyEvents((s) => [created, ...s]);
       setAllEvents((s) => [created, ...s]);
@@ -116,17 +130,20 @@ export default function FacultyEventsPage(): JSX.Element {
       const ok = confirm("Delete this event? This action cannot be undone.");
       if (!ok) return;
       try {
-        // endpoint per your backend contract:
         await axios.delete(`${EVENT_API}/event/${encodeURIComponent(eventId)}/faculty/${encodeURIComponent(me._id)}`, auth);
 
-        setMyEvents((s) => s.filter((e) => {
-          const id = String(e._id ?? e.id ?? e.eventId ?? "");
-          return id !== String(eventId);
-        }));
-        setAllEvents((s) => s.filter((e) => {
-          const id = String(e._id ?? e.id ?? e.eventId ?? "");
-          return id !== String(eventId);
-        }));
+        setMyEvents((s) =>
+          s.filter((e) => {
+            const id = String(e._id ?? e.id ?? e.eventId ?? "");
+            return id !== String(eventId);
+          })
+        );
+        setAllEvents((s) =>
+          s.filter((e) => {
+            const id = String(e._id ?? e.id ?? e.eventId ?? "");
+            return id !== String(eventId);
+          })
+        );
       } catch (error) {
         console.error("Delete failed:", error);
         alert("Failed to delete event");
@@ -154,10 +171,7 @@ export default function FacultyEventsPage(): JSX.Element {
                 {filterMy ? "Showing: My organised events" : "Showing: All events"}
               </button>
 
-              <button
-                onClick={() => setModalOpen(true)}
-                className="px-3 py-2 rounded bg-blue-600 text-white text-sm"
-              >
+              <button onClick={() => setModalOpen(true)} className="px-3 py-2 rounded bg-blue-600 text-white text-sm">
                 Organise Event
               </button>
             </div>
@@ -167,10 +181,7 @@ export default function FacultyEventsPage(): JSX.Element {
             {loading ? (
               <div className="p-4 text-center">Loading…</div>
             ) : displayed.length === 0 ? (
-              <EmptyState
-                title="No events"
-                subtitle={filterMy ? "You haven't organised any events yet." : "No events found."}
-              />
+              <EmptyState title="No events" subtitle={filterMy ? "You haven't organised any events yet." : "No events found."} />
             ) : (
               <div className="grid gap-3">
                 {displayed.map((ev: RawEvent) => {
@@ -178,10 +189,8 @@ export default function FacultyEventsPage(): JSX.Element {
                   const title = ev.title ?? ev.name ?? "Untitled event";
                   const isMy = Boolean(
                     me &&
-                      (
-                        (Array.isArray(ev.faculties) && ev.faculties.map((f: any) => String(f)).includes(String(me._id)))
-                        || (ev.organisingFaculty && String(ev.organisingFaculty) === String(me._id))
-                      )
+                      ((Array.isArray(ev.faculties) && ev.faculties.map((f: any) => String(f)).includes(String(me._id))) ||
+                        (ev.organisingFaculty && String(ev.organisingFaculty) === String(me._id)))
                   );
 
                   return (
@@ -194,10 +203,7 @@ export default function FacultyEventsPage(): JSX.Element {
 
                       <div className="flex gap-2 items-start">
                         {isMy && (
-                          <button
-                            onClick={() => handleDelete(id)}
-                            className="text-sm px-2 py-1 rounded border text-rose-600"
-                          >
+                          <button onClick={() => handleDelete(id)} className="text-sm px-2 py-1 rounded border text-rose-600">
                             Delete
                           </button>
                         )}

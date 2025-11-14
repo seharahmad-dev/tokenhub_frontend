@@ -34,6 +34,8 @@ import QuizPage from "./pages/student/QuizPage";
 
 // Added import for StorePage (note: file is under pages/faculty per your request)
 import StorePage from "./pages/student/StorePage";
+import FacultyLeaderboardPage from "./pages/faculty/LeaderboardPage";
+import FacultyProfilePage from "./components/faculty/FacultyProfilePage";
 
 export default function App() {
   return (
@@ -74,6 +76,9 @@ export default function App() {
         <Route path="/faculty" element={<FacultyDashboard />} />
         <Route path="/faculty/events" element={<FacultyEventsPage />} />
         <Route path="/faculty/hod-panel" element={<HodPanel />} />
+        <Route path="/faculty/leaderboard" element={<FacultyLeaderboardPage />} />
+        <Route path="/faculty/profile" element={<FacultyProfilePage />} />
+
       </Routes>
     </BrowserRouter>
   );

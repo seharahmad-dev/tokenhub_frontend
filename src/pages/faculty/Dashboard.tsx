@@ -1,15 +1,12 @@
-// src/pages/faculty/FacultyDashboard.tsx
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useAppSelector } from "../../app/hooks";
+import { selectFaculty } from "../../app/facultySlice";
 import FacultyNavbar from "../../components/faculty/FacultyNavbar";
 import SectionCard from "../../components/common/SectionCard";
 import EventsMini from "../../components/student/EventsMini";
-import LeaderboardMini from "../../components/student/LeaderboardMini";
 import FacultyEventsList from "../../components/faculty/FacultyEventsList";
-
-/**
- * FacultyDashboard - updated to prefer faculty-specific events endpoint
- */
+import FacultyProcteeLeaderboard from "../../components/faculty/FacultyProcteeLeaderboard";
 
 type Faculty = {
   _id?: string;
@@ -35,17 +32,18 @@ type EventRow = {
 };
 
 export default function FacultyDashboard() {
-  const [me, setMe] = useState<Faculty | null>(null);
+  const facultyFromRedux = useAppSelector((s: any) => selectFaculty(s as any));
+  const [me, setMe] = useState<Faculty | null>(() => facultyFromRedux ?? null);
 
   // events state
   const [events, setEvents] = useState<EventRow[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [, setEventsErr] = useState<string | null>(null);
 
-  // leaderboard state (unchanged)
-  const [leaderRows, setLeaderRows] = useState<any[]>([]);
-  const [leaderLoading, setLeaderLoading] = useState(false);
-  const [leaderErr, setLeaderErr] = useState<string | null>(null);
+  // proctee leaderboard state
+  const [procteeRows, setProcteeRows] = useState<any[]>([]);
+  const [procteeLoading, setProcteeLoading] = useState(false);
+  const [procteeErr, setProcteeErr] = useState<string | null>(null);
 
   const EVENT_API = (import.meta.env.VITE_EVENT_API as string) || "";
   const TOKEN_API = (import.meta.env.VITE_TOKEN_API as string) || "";
@@ -53,45 +51,57 @@ export default function FacultyDashboard() {
 
   const token = useMemo(() => sessionStorage.getItem("accessToken") || "", []);
 
+  // keep redux -> local state in sync; fallback to session if redux empty
   useEffect(() => {
+    if (facultyFromRedux) {
+      setMe(facultyFromRedux);
+      return;
+    }
     try {
       const raw = sessionStorage.getItem("user");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setMe(parsed);
-      } else {
-        setMe(null);
-      }
+      setMe(raw ? JSON.parse(raw) : null);
     } catch {
       setMe(null);
     }
-  }, []);
+  }, [facultyFromRedux]);
 
+  // load events using new faculty endpoint
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      if (!me?._id) return;
+      const facultyId = me?._id ?? "";
+      if (!facultyId) return;
       setEventsLoading(true);
       setEventsErr(null);
       try {
         const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
-        // Use faculty API to get event snapshots (array of event IDs or event objects)
         if (!FACULTY_API) {
-          setEvents([]);
+          if (mounted) setEvents([]);
           return;
         }
-        const r = await axios.get(`${FACULTY_API}/faculty/${me._id}/events`, auth);
+
+        const r = await axios.get(`${FACULTY_API}/faculty/${encodeURIComponent(facultyId)}/events`, auth);
         const raw = r?.data?.data ?? r?.data ?? [];
         const arr: any[] = Array.isArray(raw) ? raw : [];
 
-        // If arr contains strings (event ids), fetch full event objects
+        // If arr contains event ids (strings), resolve each via EVENT_API /event/:id
         if (arr.length > 0 && typeof arr[0] === "string") {
-          const eventFetches = arr.map((eid) => axios.get(`${EVENT_API}/event/${encodeURIComponent(eid)}`, auth).then(res => res?.data?.data ?? res?.data).catch(() => null));
+          const base = EVENT_API.replace(/\/+$/, "");
+          const eventFetches = arr.map((eid) =>
+            axios
+              .get(`${EVENT_API}/event/${encodeURIComponent(eid)}/event`, auth)
+              .then((res) => res?.data?.data ?? res?.data)
+              .catch((err) => {
+                console.warn(`Failed to fetch event ${eid}:`, err?.message ?? err);
+                return null;
+              })
+          );
           const resolved = await Promise.all(eventFetches);
-          const eventsResolved = resolved.filter(Boolean);
+          const eventsResolved = resolved.filter(Boolean) as EventRow[];
           if (mounted) setEvents(eventsResolved);
         } else {
-          if (mounted) setEvents(arr);
+          // assume arr is event objects
+          if (mounted) setEvents(arr as EventRow[]);
         }
       } catch (e: any) {
         console.error("Failed to load faculty events:", e);
@@ -105,69 +115,134 @@ export default function FacultyDashboard() {
     };
 
     load();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [me?._id, FACULTY_API, EVENT_API, token]);
 
-  // leader board (unchanged)
+  /* Proctee leaderboard (unchanged logic) */
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
-      setLeaderLoading(true);
-      setLeaderErr(null);
+    const loadProcteesLeaderboard = async () => {
+      if (!me?._id) return;
+      setProcteeLoading(true);
+      setProcteeErr(null);
       try {
-        if (!TOKEN_API) {
-          setLeaderErr("Token service URL not set");
+        if (!FACULTY_API) {
+          setProcteeErr("Faculty service URL not set");
+          setProcteeRows([]);
           return;
         }
-        const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
-        const r = await axios.get(`${TOKEN_API}/token/leaderboard/all`, auth);
-        const raw = r?.data?.data ?? r?.data ?? [];
-        const arr: any[] = Array.isArray(raw) ? raw : [];
 
-        const mapped = arr.map((it: any) => {
-          const studentObj = it.studentId ?? it.student ?? null;
-          const id = (typeof studentObj === "string" && studentObj) || (studentObj && (studentObj._id || studentObj.id)) || it._id || it.studentId || "";
-          const name = it.name || (studentObj && (studentObj.name || `${studentObj.firstName ?? ""} ${studentObj.lastName ?? ""}`)) || it.studentName || "Unknown";
-          const branch = studentObj?.branch ?? it.branch ?? null;
-          const points = Number(it.totalTokens ?? it.points ?? it.availableTokens ?? 0);
-          return { id: String(id), name: String(name), branch, points, raw: it };
+        const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
+
+        const resp = await axios.get(`${FACULTY_API}/faculty/${encodeURIComponent(me._id)}/proctees`, auth).catch((err) => {
+          console.warn("Proctees fetch failed:", err?.message ?? err);
+          return null;
         });
 
-        // faculty proctee-filter is not implemented here; keep for backward compatibility
-        const facultyBranch = me?.branch;
-        let final: any[] = mapped;
-        if (facultyBranch) {
-          const byBranch = mapped.filter((m) => m.branch && String(m.branch).toUpperCase() === String(facultyBranch).toUpperCase());
-          if (byBranch.length > 0) final = byBranch;
+        let procteesPayload: any[] = [];
+        if (resp && resp.data) {
+          const payload = resp?.data?.data ?? resp?.data ?? null;
+          if (Array.isArray(payload)) {
+            procteesPayload = payload;
+          } else if (payload && Array.isArray(payload?.proctees)) {
+            procteesPayload = payload.proctees;
+          }
         }
 
-        final.sort((a, b) => b.points - a.points);
+        if (!procteesPayload || procteesPayload.length === 0) {
+          if (mounted) setProcteeRows([]);
+          setProcteeLoading(false);
+          return;
+        }
 
-        if (mounted) setLeaderRows(final);
-      } catch (e: any) {
-        console.error("Failed to fetch leaderboard:", e);
-        if (mounted) setLeaderErr("Failed to load leaderboard");
+        const normalized = procteesPayload
+          .map((p) => {
+            if (!p) return null;
+            if (typeof p === "string") return { _id: p };
+            if (typeof p === "object" && (p._id || p.id)) {
+              const id = p._id ?? p.id;
+              const name =
+                p.firstName || p.lastName
+                  ? `${String(p.firstName ?? "")} ${String(p.lastName ?? "")}`.trim()
+                  : p.name ?? p.email ?? "";
+              return { _id: String(id), name, usn: p.usn ?? undefined, email: p.email ?? undefined };
+            }
+            return null;
+          })
+          .filter(Boolean) as { _id: string; name?: string; usn?: string; email?: string }[];
+
+        if (!TOKEN_API) {
+          const rowsNoToken = normalized.map((p) => ({
+            studentId: p._id,
+            name: p.name ?? "Unknown",
+            usn: p.usn,
+            email: p.email,
+            totalTokens: 0,
+          }));
+          if (mounted) setProcteeRows(rowsNoToken);
+          return;
+        }
+
+        const tokenBase = TOKEN_API.replace(/\/+$/, "");
+        const promises = normalized.map(async (p) => {
+          try {
+            const r = await axios.get(`${tokenBase}/token/${encodeURIComponent(p._id)}/total`, auth);
+            const data = r?.data?.data ?? r?.data ?? null;
+            const total = Number(data?.totalTokens ?? data?.total ?? data?.availableTokens ?? 0);
+            return {
+              studentId: p._id,
+              name: p.name ?? `${p.email ?? "Unknown"}`,
+              usn: p.usn,
+              email: p.email,
+              totalTokens: Number.isNaN(total) ? 0 : total,
+            };
+          } catch (err) {
+            console.warn(`Failed to load token summary for ${p._id}`, (err as Error)?.message ?? err);
+            return {
+              studentId: p._id,
+              name: p.name ?? `${p.email ?? "Unknown"}`,
+              usn: p.usn,
+              email: p.email,
+              totalTokens: 0,
+            };
+          }
+        });
+
+        const resolved = await Promise.all(promises);
+        resolved.sort((a, b) => (Number(b.totalTokens) || 0) - (Number(a.totalTokens) || 0));
+
+        if (mounted) setProcteeRows(resolved);
+      } catch (err: any) {
+        console.error("Failed to build proctee leaderboard:", err);
+        if (mounted) {
+          setProcteeErr("Failed to fetch proctee leaderboard");
+          setProcteeRows([]);
+        }
       } finally {
-        if (mounted) setLeaderLoading(false);
+        if (mounted) setProcteeLoading(false);
       }
     };
 
-    load();
-    return () => { mounted = false; };
-  }, [TOKEN_API, me?.branch, token]);
+    loadProcteesLeaderboard();
+    return () => {
+      mounted = false;
+    };
+  }, [me?._id, FACULTY_API, TOKEN_API, token]);
 
   const leaderboardForMini = useMemo(() => {
-    return leaderRows.map((r) => ({
-      studentId: r.id,
+    return procteeRows.map((r) => ({
+      studentId: r.studentId,
       name: r.name,
-      totalTokens: r.points,
-      usn: undefined,
-      email: undefined,
+      totalTokens: r.totalTokens,
+      usn: r.usn,
+      email: r.email,
     }));
-  }, [leaderRows]);
+  }, [procteeRows]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <FacultyNavbar />
 
       <main className="container 2xl:px-0 px-4">
@@ -176,7 +251,7 @@ export default function FacultyDashboard() {
             {/* LEFT */}
             <div className="lg:col-span-8 space-y-6">
               <SectionCard title={`Welcome${me ? `, ${me.firstName ?? ""} ${me.lastName ?? ""}` : ""}`}>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-emerald-700">
                   This dashboard shows events you are associated with. Manage event details from the Events page.
                 </p>
               </SectionCard>
@@ -184,23 +259,21 @@ export default function FacultyDashboard() {
               <SectionCard title="Events organized by you">
                 <FacultyEventsList events={events} loading={eventsLoading} />
               </SectionCard>
-
-              <SectionCard title="All your events (compact)" action={<a href="/faculty/events" className="text-sm text-blue-600 hover:underline">View all</a>}>
-                <EventsMini rows={events.map(e => ({ _id: e._id, title: e.title, schedule: e.schedule, venue: e.venue }))} loading={eventsLoading} onViewAll={() => { window.location.href = "/faculty/events"; }} />
-              </SectionCard>
             </div>
 
             {/* RIGHT */}
             <aside className="lg:col-span-4 lg:sticky lg:top-24 self-start">
               <SectionCard title="Proctee Leaderboard">
-                {leaderLoading ? (
+                {procteeLoading ? (
                   <div className="p-4 text-center">Loading leaderboard…</div>
-                ) : leaderErr ? (
-                  <div className="p-4 text-rose-600">{leaderErr}</div>
+                ) : procteeErr ? (
+                  <div className="p-4 text-rose-600">{procteeErr}</div>
                 ) : leaderboardForMini.length === 0 ? (
-                  <div className="p-4 text-sm text-slate-600">No proctee data available. Showing global leaderboard will require token service to provide student branch info.</div>
+                  <div className="p-4 text-sm text-slate-600">
+                    No proctee data available. Ensure your proctees are assigned to you in the Faculty service.
+                  </div>
                 ) : (
-                  <LeaderboardMini rows={leaderboardForMini as any} myId={me?._id} />
+                  <FacultyProcteeLeaderboard rows={leaderboardForMini as any} myId={me?._id} />
                 )}
               </SectionCard>
             </aside>

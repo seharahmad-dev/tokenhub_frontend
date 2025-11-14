@@ -11,7 +11,8 @@ export type EventRow = {
   capacity?: number;
   eligibility?: { branch?: string; semester?: string };
   organizers?: { clubId?: string };
-  organizingBranch?: string;
+  organisingBranch?: string;
+  organisingClub?: string;
   permission?: string;
 };
 
@@ -37,7 +38,10 @@ export default function EventCard({
     return d.getTime() < Date.now();
   }, [e.schedule]);
 
-  const showRegister = !isPast && !participated;
+  const showRegister = !isPast && !participated && e.organisingClub !== 'random';
+
+  console.log(e);
+
 
   const handleRegister = () => {
     if (onRegister) {
@@ -59,17 +63,13 @@ export default function EventCard({
             <span className="inline-block mr-3">
               Venue: <b>{e.venue || "—"}</b>
             </span>
-            <span className="inline-block">
-              Club: <b>{e.organizers?.clubId || "—"}</b>
-            </span>
           </div>
         </div>
 
         <div className="shrink-0 text-right">
           <div
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
-              isPast ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-700"
-            }`}
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${isPast ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-700"
+              }`}
             title="Date & time"
           >
             {isPast ? "Past" : "Upcoming"}
@@ -102,15 +102,18 @@ export default function EventCard({
           <div className="text-slate-600">
             <span className="inline-block w-24 text-slate-500">Eligibility:</span>
             <b>
-              {e.eligibility.branch ?? ""} • Sem {e.eligibility.semester ?? ""}
+              {e?.eligibility?.branch === "*" && e?.eligibility?.semester === "*"
+                ? "All"
+                : `${e?.eligibility?.branch ?? ""}${e?.eligibility?.branch && e?.eligibility?.semester ? " " : ""}${e?.eligibility?.semester ?? ""}`}
             </b>
+
           </div>
         )}
       </div>
 
       <div className="mt-4 flex items-center justify-between">
         <div className="text-xs text-slate-500">
-          Branch: {e.organizingBranch || "—"} • Status: {e.permission || "—"}
+          Branch: {e.organisingBranch || "—"} • Status: {e.permission || "—"}
         </div>
 
         {showRegister ? (
@@ -120,7 +123,7 @@ export default function EventCard({
           >
             Register Now
           </button>
-        ) : (
+        ) : e.organisingClub !== 'random' ? (
           <button
             disabled
             className="inline-flex items-center rounded-lg bg-slate-200 px-3 py-2 text-sm font-medium text-slate-600"
@@ -128,7 +131,7 @@ export default function EventCard({
           >
             {isPast ? "Closed" : "Registered"}
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );
