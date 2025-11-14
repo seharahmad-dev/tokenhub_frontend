@@ -18,12 +18,8 @@ export type EventRow = {
 
 export default function EventCard({
   e,
-  participated,
-  onRegister, // optional now
 }: {
   e: EventRow;
-  participated: boolean;
-  onRegister?: (id: string) => void;
 }) {
   const navigate = useNavigate();
 
@@ -37,19 +33,6 @@ export default function EventCard({
     if (isNaN(d.getTime())) return false;
     return d.getTime() < Date.now();
   }, [e.schedule]);
-
-  const showRegister = !isPast && !participated;
-
-  console.log(e);
-
-
-  const handleRegister = () => {
-    if (onRegister) {
-      onRegister(e._id);
-    } else {
-      navigate(`/student/events/${e._id}/register`);
-    }
-  };
 
   return (
     <div className="rounded-xl border bg-white p-4 sm:p-5">
@@ -68,70 +51,54 @@ export default function EventCard({
 
         <div className="shrink-0 text-right">
           <div
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${isPast ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-700"
-              }`}
-            title="Date & time"
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+              isPast
+                ? "bg-slate-100 text-slate-700"
+                : "bg-emerald-50 text-emerald-700"
+            }`}
           >
             {isPast ? "Past" : "Upcoming"}
           </div>
-          {participated && (
-            <div
-              className="mt-1 inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700"
-              title="You already registered/participated"
-            >
-              Registered
-            </div>
-          )}
         </div>
       </div>
 
-      <p className="mt-3 text-sm text-slate-700 line-clamp-3">{e.description}</p>
+      <p className="mt-3 text-sm text-slate-700 line-clamp-3">
+        {e.description}
+      </p>
 
       <div className="mt-4 grid gap-2 text-sm">
         <div className="text-slate-600">
           <span className="inline-block w-24 text-slate-500">Schedule:</span>
           <b>{when}</b>
         </div>
+
         {typeof e.capacity === "number" && (
           <div className="text-slate-600">
             <span className="inline-block w-24 text-slate-500">Capacity:</span>
             <b>{e.capacity}</b>
           </div>
         )}
+
         {e.eligibility && (
           <div className="text-slate-600">
             <span className="inline-block w-24 text-slate-500">Eligibility:</span>
             <b>
-              {e?.eligibility?.branch === "*" && e?.eligibility?.semester === "*"
+              {e.eligibility.branch === "*" &&
+              e.eligibility.semester === "*"
                 ? "All"
-                : `${e?.eligibility?.branch ?? ""}${e?.eligibility?.branch && e?.eligibility?.semester ? " " : ""}${e?.eligibility?.semester ?? ""}`}
+                : `${e.eligibility.branch ?? ""}${
+                    e.eligibility.branch && e.eligibility.semester ? " " : ""
+                  }${e.eligibility.semester ?? ""}`}
             </b>
-
           </div>
         )}
       </div>
 
       <div className="mt-4 flex items-center justify-between">
         <div className="text-xs text-slate-500">
-          Branch: {e.organisingBranch || "—"} • Status: {e.permission || "—"}
+          Branch: {e.organisingBranch || "—"} • Status:{" "}
+          {e.permission || "—"}
         </div>
-
-        {showRegister ? (
-          <button
-            onClick={handleRegister}
-            className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Register Now
-          </button>
-        ) : (
-          <button
-            disabled
-            className="inline-flex items-center rounded-lg bg-slate-200 px-3 py-2 text-sm font-medium text-slate-600"
-            title={isPast ? "Event already happened" : "You have already registered"}
-          >
-            {isPast ? "Closed" : "Registered"}
-          </button>
-        )}
       </div>
     </div>
   );
