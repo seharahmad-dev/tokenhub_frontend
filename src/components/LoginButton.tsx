@@ -11,7 +11,7 @@ export default function LoginButton({ label, href, color }: Props) {
       className="group w-full"
     >
       <div className="w-full rounded-xl border border-slate-200 p-5 transition hover:shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between ">
           <div>
             <p className="text-xs text-slate-500">Sign in as</p>
             <h3 className="mt-1 text-lg font-semibold">{label}</h3>
