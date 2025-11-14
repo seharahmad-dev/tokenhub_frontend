@@ -1,3 +1,4 @@
+// src/App.tsx (or wherever your Router is defined)
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import StudentLogin from "./pages/StudentLogin";
@@ -31,6 +32,9 @@ import FacultyEventsPage from "./pages/faculty/Events";
 import HodPanel from "./pages/faculty/HodPanel";
 import EventManageWinners from "./pages/student/EventManageWinners";
 
+// Added import for StorePage (note: file is under pages/faculty per your request)
+import StorePage from "./pages/student/StorePage";
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -63,10 +67,13 @@ export default function App() {
         <Route path="/student/register-team" element={<RegisterTeam />} />
         <Route path="/student/events/:id/register" element={<EventRegisterPage />} />
         <Route path="/student/events/:id/payment" element={<EventPaymentPage />} />
+
+        {/* Store route — renders the StorePage component */}
+        <Route path="/student/store" element={<StorePage />} />
+
         <Route path="/faculty" element={<FacultyDashboard />} />
         <Route path="/faculty/events" element={<FacultyEventsPage />} />
         <Route path="/faculty/hod-panel" element={<HodPanel />} />
-
       </Routes>
     </BrowserRouter>
   );

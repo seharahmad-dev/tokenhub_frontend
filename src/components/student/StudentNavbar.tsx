@@ -18,7 +18,7 @@ const LINKS: NavItem[] = [
 
 type Notification = {
   inviterName?: string;
-  inviterId?: string; // back-compat if server still sends inviterId
+  inviterId?: string;
   registrationId: string | null;
   eventName: string;
   read?: boolean;
@@ -34,6 +34,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
   const profileRef = useRef<HTMLDivElement | null>(null);
   const notifBtnRef = useRef<HTMLButtonElement | null>(null);
 
+  // totalTokens remains for historical/readonly use; availablePoints is the actionable balance
   const [totalTokens, setTotalTokens] = useState(tokens);
   const [availablePoints, setAvailablePoints] = useState(points);
   const [loadingTokens, setLoadingTokens] = useState(false);
@@ -67,7 +68,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
     return () => document.removeEventListener("click", handleClickOutside);
   }, [notifOpen, profileOpen]);
 
-  // fetch tokens (unchanged)
+  // fetch tokens: we now populate both totalTokens and availablePoints (availableTokens) from API
   useEffect(() => {
     const fetchTokens = async () => {
       if (!student?._id) return;
@@ -75,11 +76,26 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
       try {
         const baseURL = import.meta.env.VITE_TOKEN_API || "";
         const resp = await axios.get(`${baseURL}/token/${student._id}/total`, { withCredentials: true });
-        const data = resp?.data?.data;
-        if (data) {
-          setTotalTokens(data.totalTokens ?? 0);
-          setAvailablePoints(data.availableTokens ?? 0);
+        const payload = resp?.data?.data ?? resp?.data ?? null;
+
+        // support multiple shapes:
+        // 1) { data: { totalTokens, availableTokens } }
+        // 2) { token: { totalTokens, availableTokens } }
+        // 3) { totalTokens, availableTokens }
+        let total: number | undefined;
+        let available: number | undefined;
+
+        const obj = payload?.token ?? payload ?? null;
+        if (obj && typeof obj === "object") {
+          if (typeof obj.totalTokens === "number") total = obj.totalTokens;
+          if (typeof obj.availableTokens === "number") available = obj.availableTokens;
+          if (typeof payload.totalTokens === "number" && total === undefined) total = payload.totalTokens;
+          if (typeof payload.availableTokens === "number" && available === undefined) available = payload.availableTokens;
         }
+
+        // fallback to earlier naming if API returns different shape
+        if (total !== undefined) setTotalTokens(total);
+        if (available !== undefined) setAvailablePoints(available);
       } catch (err: any) {
         console.error("Error fetching tokens:", err);
       } finally {
@@ -96,7 +112,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
-  // Fetch notifications when the panel opens (and also whenever student changes).
+  // Fetch notifications when the panel opens
   useEffect(() => {
     if (!notifOpen) return;
     if (!student?._id) {
@@ -109,10 +125,8 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
       setLoadingNotifications(true);
       setNotifError(null);
       try {
-        const STUDENT_API = import.meta.env.VITE_STUDENT_API || ""; // e.g. http://localhost:4001
-        // NOTE: expects endpoint GET /student/:id/notifications
+        const STUDENT_API = import.meta.env.VITE_STUDENT_API || "";
         const resp = await axios.get(`${STUDENT_API}/student/${student._id}/notifications`, { withCredentials: true, timeout: 5000 });
-        // support either shape: { data: { notifications: [...] } } or { data: [...] }
         const payload = resp?.data?.data ?? resp?.data ?? null;
         const notifs: Notification[] = Array.isArray(payload) ? payload : Array.isArray(payload?.notifications) ? payload.notifications : [];
         if (!cancelled) setNotifications(notifs);
@@ -128,7 +142,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
     return () => { cancelled = true; };
   }, [notifOpen, student?._id]);
 
-  // optional: fetch notifications when user signs in (so badge shows without clicking)
+  // optional: fetch notifications on signin
   useEffect(() => {
     if (!student?._id) return;
     let mounted = true;
@@ -146,7 +160,6 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
     return () => { mounted = false; };
   }, [student?._id]);
 
-  // helper to mark a notification read locally
   const markNotificationReadLocally = (registrationId?: string | null) => {
     if (!registrationId) return;
     setNotifications(prev => prev.map(n => {
@@ -157,7 +170,6 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
     }));
   };
 
-  // helper to call student API to mark as read (best-effort)
   const markNotificationReadRemote = async (registrationId?: string | null) => {
     if (!registrationId || !student?._id) return;
     const STUDENT_API = import.meta.env.VITE_STUDENT_API || "";
@@ -172,10 +184,9 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
     }
   };
 
-  // Accept invitation: call registration service accept endpoint
   const acceptInvitation = async (notif: Notification) => {
     if (!notif.registrationId || !student?._id) return;
-    const REG_API = import.meta.env.VITE_REGISTRATION_API || ""; // e.g. http://localhost:4010
+    const REG_API = import.meta.env.VITE_REGISTRATION_API || "";
     setActionLoadingId(notif.registrationId);
     try {
       await axios.patch(
@@ -183,8 +194,6 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
         { studentId: student._id },
         { withCredentials: true }
       );
-
-      // mark notification as read (local + remote best-effort)
       markNotificationReadLocally(notif.registrationId);
       markNotificationReadRemote(notif.registrationId);
     } catch (err) {
@@ -205,8 +214,6 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
         { studentId: student._id },
         { withCredentials: true }
       );
-
-      // mark notification as read (local + remote best-effort)
       markNotificationReadLocally(notif.registrationId);
       markNotificationReadRemote(notif.registrationId);
     } catch (err) {
@@ -217,7 +224,6 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
     }
   };
 
-  // unread / badge count (only unread notifications)
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
@@ -236,7 +242,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
               <a
                 key={l.label}
                 href={l.href}
-                className={`hover:text-slate-900 ${isActive(l.href) ? "text-blue-600 font-medium" : "text-slate-600"}`}
+                className={`hover:text-slate-900 ${isActive(l.href) ? (l.label === 'Store' ? 'text-green-600 font-medium' : 'text-blue-600 font-medium') : 'text-slate-600'}`}
               >
                 {l.label}
               </a>
@@ -308,7 +314,7 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
                                 <div className={`text-sm font-medium ${isRead ? "text-slate-400" : "text-slate-800"}`}>
                                   {n.eventName || "Invitation"}
                                 </div>
-                                <div className="text-xs" style={{ color: isRead ? undefined : undefined }}>
+                                <div className="text-xs">
                                   <span className={isRead ? "text-slate-400" : "text-slate-500"}>
                                     Invited by {n.inviterName ?? n.inviterId ?? "Unknown"}
                                   </span>
@@ -352,17 +358,18 @@ export default function StudentNavbar({ tokens = 0, points = 0 }: { tokens?: num
               )}
             </div>
 
+            {/* Display availablePoints (actionable tokens) first, then totalTokens as trophy */}
             <div className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white">
               <span>🪙</span>
-              <span>{loadingTokens ? "..." : totalTokens}</span>
+              <span>{loadingTokens ? "..." : availablePoints}</span>
             </div>
 
             <div className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm bg-white">
               <span>🏆</span>
-              <span>{loadingTokens ? "..." : availablePoints}</span>
+              <span>{loadingTokens ? "..." : totalTokens}</span>
             </div>
 
-            {/* Profile dropdown (restored) */}
+            {/* Profile dropdown */}
             <div className="relative" ref={profileRef}>
               <button onClick={() => setProfileOpen(v => !v)} className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-slate-700">👤</button>
               {profileOpen && (
