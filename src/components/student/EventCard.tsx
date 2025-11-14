@@ -48,6 +48,8 @@ export default function EventCard({
     }
   };
 
+  console.log(e);
+
   return (
     <div className="rounded-xl border bg-white p-4 sm:p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
