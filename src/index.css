@@ -3,3 +3,4 @@
 @tailwind utilities;
 
 html, body, #root { height: 100%; }
+@keyframes pop { from { transform: translateY(6px) scale(.995); opacity: .0 } to { transform: translateY(0) scale(1); opacity: 1 } }

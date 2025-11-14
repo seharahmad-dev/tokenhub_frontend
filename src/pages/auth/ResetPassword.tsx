@@ -34,7 +34,7 @@ export default function ResetPasswordPage() {
       await api.resetPassword(role as Role, email, otp, pw);
       navigate(`/login/${role}`);
     } catch (e: any) {
-      setErr(e.message);
+      setErr(e?.message ?? "Reset failed");
     } finally {
       setLoading(false);
     }
@@ -42,37 +42,48 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthLayout title="Reset Password" subtitle={`Reset password for ${email}`}>
-      <form onSubmit={onSubmit} className="grid gap-4 max-w-md">
+      <form onSubmit={onSubmit} className="grid gap-4 max-w-md w-full">
+        {/* Card */}
+        <div className="rounded-lg border border-red-100 bg-white p-4 shadow-sm">
+          {/* Password */}
+          <div className="mb-3">
+            <TextInput
+              label="New Password"
+              type="password"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              onFocus={() => setFocus(true)}
+              onBlur={() => setFocus(false)}
+              required
+              className="rounded-md border border-slate-200 px-3 py-2 focus:ring-1 focus:ring-red-300 outline-none"
+            />
+            <PasswordCriteria value={pw} visible={focus} />
+          </div>
 
-        {/* Password */}
-        <div>
-          <TextInput
-            label="New Password"
-            type="password"
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-            onFocus={() => setFocus(true)}
-            onBlur={() => setFocus(false)}
-            required
-          />
-          <PasswordCriteria value={pw} visible={focus} />
+          {/* Confirm Password */}
+          <div>
+            <TextInput
+              label="Confirm Password"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              className="rounded-md border border-slate-200 px-3 py-2 focus:ring-1 focus:ring-red-300 outline-none"
+            />
+            {confirm && pw !== confirm && (
+              <p className="text-sm text-rose-600 -mt-1">Passwords do not match.</p>
+            )}
+          </div>
         </div>
-
-        {/* Confirm Password */}
-        <TextInput
-          label="Confirm Password"
-          type="password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          required
-        />
-        {confirm && pw !== confirm && (
-          <p className="text-sm text-rose-600 -mt-1">Passwords do not match.</p>
-        )}
 
         {err && <p className="text-sm text-rose-600">{err}</p>}
 
-        <button disabled={!canSubmit || loading} className="h-10 rounded-lg bg-blue-900 text-white disabled:opacity-60">
+        <button
+          disabled={!canSubmit || loading}
+          className={`h-10 w-full rounded-lg text-white disabled:opacity-60 ${
+            loading ? "bg-red-400/70" : "bg-red-600 hover:bg-red-700"
+          }`}
+        >
           {loading ? "Resetting..." : "Reset Password"}
         </button>
       </form>

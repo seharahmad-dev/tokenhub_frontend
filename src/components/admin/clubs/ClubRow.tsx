@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import IconButton from "../../common/IconButton";
 
 export type ClubMember = {
   _id?: string;
   studentId: string;
-  role: string;          // "Club Head" | "member" | etc.
+  role: string; // "Club Head" | "member" | etc.
   joiningDate?: string;
   name?: string;
   studentName?: string;
@@ -29,13 +30,16 @@ type StudentMin = {
   email?: string;
 };
 
-const STUDENTS_API = "http://localhost:4002/api/student/all"; // adjust to your actual student API
+const STUDENTS_API = import.meta.env.VITE_STUDENTS_API || "http://localhost:4002/api/student/all";
 
 export default function ClubRow({ c, onReplaceHead, onDelete }: Props) {
   const head = c.members?.find(
-    (m) => m.role === "Club Head" || m.role === "clubHead"
+    (m) =>
+      m.role === "Club Head" ||
+      m.role === "clubHead" ||
+      (m.role ?? "").toLowerCase() === "club head"
   );
-  const headLabel = head?.name || head?.studentName || head?.studentId || "-";
+  const headLabel = head?.name ?? head?.studentName ?? head?.studentId ?? "-";
 
   const [replaceOpen, setReplaceOpen] = useState(false);
 
@@ -51,32 +55,33 @@ export default function ClubRow({ c, onReplaceHead, onDelete }: Props) {
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch students once when replace is opened
-useEffect(() => {
-  if (!replaceOpen) return;
+  useEffect(() => {
+    if (!replaceOpen) return;
+    const token = sessionStorage.getItem("accessToken");
+    setLoadingStudents(true);
 
-  const token = sessionStorage.getItem("accessToken");
-  setLoadingStudents(true);
-
-  fetch(STUDENTS_API, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: "include",
-  })
-    .then(async (res) => {
-      if (!res.ok) throw new Error("Failed to fetch students");
-      const body = await res.json();
-      const maybeArray =
-        Array.isArray(body)
-          ? body
-          : body.data ?? body.payload ?? body.students ?? body.data?.students ?? [];
-      setStudents(maybeArray as StudentMin[]);
+    fetch(STUDENTS_API, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
     })
-    .catch((err) => console.error("fetch students error", err))
-    .finally(() => setLoadingStudents(false));
-}, [replaceOpen]);
-
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to fetch students");
+        const body = await res.json();
+        const maybeArray =
+          Array.isArray(body)
+            ? body
+            : body.data ?? body.payload ?? body.students ?? body.data?.students ?? [];
+        setStudents(maybeArray as StudentMin[]);
+      })
+      .catch((err) => {
+        console.error("fetch students error", err);
+        setStudents([]);
+      })
+      .finally(() => setLoadingStudents(false));
+  }, [replaceOpen]);
 
   // Client-side filtering (name, USN, email)
   const filtered = useMemo(() => {
@@ -114,7 +119,6 @@ useEffect(() => {
   // Keyboard navigation
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDropdown) return;
-
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightIndex((prev) => Math.min(prev + 1, filtered.length - 1));
@@ -131,7 +135,6 @@ useEffect(() => {
   };
 
   const onSelectStudent = (s: StudentMin) => {
-    // prevent selecting same as current head
     if (String(s._id) === String(head?.studentId)) {
       alert("This student is already the current Club Head.");
       return;
@@ -161,32 +164,41 @@ useEffect(() => {
 
   return (
     <>
-      <tr className="border-t">
-        <td className="px-3 py-2">{c.clubName}</td>
-        <td className="px-3 py-2">{headLabel}</td>
-        <td className="px-3 py-2">{c.members?.length ?? 0}</td>
-        <td className="px-3 py-2 text-right">
-          <div className="inline-flex gap-2">
-            <button
-              onClick={() => setReplaceOpen(true)}
-              className="rounded-lg border px-3 py-1 text-xs"
+      <tr className="border-b last:border-none hover:bg-red-50/10 transition-colors">
+        <td className="px-4 py-3">
+          <div className="font-medium text-slate-900">{c.clubName}</div>
+        </td>
+        <td className="px-4 py-3 text-slate-700">{headLabel}</td>
+        <td className="px-4 py-3 text-slate-700">{c.members?.length ?? 0}</td>
+        <td className="px-4 py-3 text-right">
+          <div className="flex justify-end gap-2">
+            <IconButton
+              title="Replace Head"
+              onClick={() => {
+                setReplaceOpen((s) => !s);
+                setQuery("");
+                setSelectedStudent(null);
+              }}
+              tone="default"
             >
               Replace Head
-            </button>
-            <button
+            </IconButton>
+
+            <IconButton
+              title="Delete Club"
               onClick={() => onDelete(c._id)}
-              className="rounded-lg bg-rose-600 px-3 py-1 text-xs text-white"
+              tone="danger"
             >
-              Delete
-            </button>
+              🗑 Delete
+            </IconButton>
           </div>
         </td>
       </tr>
 
       {replaceOpen && (
-        <tr className="bg-slate-50">
-          <td colSpan={4} className="px-3 py-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center relative">
+        <tr className="bg-white">
+          <td colSpan={4} className="px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="relative w-full sm:w-96">
                 <input
                   ref={inputRef}
@@ -199,11 +211,11 @@ useEffect(() => {
                   onFocus={() => setShowDropdown(true)}
                   onKeyDown={onKeyDown}
                   placeholder="Search new head by name, USN, or email"
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
                 />
 
                 {selectedStudent && (
-                  <div className="mt-1 text-xs text-slate-600 flex justify-between">
+                  <div className="mt-2 text-xs text-slate-700 flex justify-between items-center rounded-md border border-slate-100 bg-white p-2">
                     <span>
                       Selected:{" "}
                       <strong>
@@ -214,7 +226,7 @@ useEffect(() => {
                     <button
                       type="button"
                       onClick={clearSelected}
-                      className="text-red-600 underline"
+                      className="text-red-600 underline text-xs"
                     >
                       Clear
                     </button>
@@ -225,19 +237,16 @@ useEffect(() => {
                 {showDropdown && (
                   <div
                     ref={dropdownRef}
-                    className="absolute z-[9999] mt-1 w-full max-h-56 overflow-auto rounded-md border bg-white shadow-lg"
+                    className="absolute z-50 mt-2 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg"
                   >
                     {loadingStudents ? (
                       <div className="p-3 text-sm">Loading students...</div>
                     ) : filtered.length === 0 ? (
-                      <div className="p-3 text-sm text-slate-500">
-                        No matching students
-                      </div>
+                      <div className="p-3 text-sm text-slate-500">No matching students</div>
                     ) : (
                       filtered.map((s, idx) => {
                         const isHighlighted = idx === highlightIndex;
-                        const isCurrentHead =
-                          String(s._id) === String(head?.studentId);
+                        const isCurrentHead = String(s._id) === String(head?.studentId);
                         return (
                           <button
                             key={s._id}
@@ -245,15 +254,15 @@ useEffect(() => {
                             disabled={isCurrentHead}
                             onClick={() => onSelectStudent(s)}
                             onMouseEnter={() => setHighlightIndex(idx)}
-                            className={`w-full text-left px-3 py-2 hover:bg-slate-50 ${
-                              isHighlighted ? "bg-slate-100" : ""
-                            } ${
+                            className={`w-full text-left px-3 py-2 hover:bg-slate-50 ${isHighlighted ? "bg-slate-100" : ""} ${
                               isCurrentHead ? "text-gray-400 cursor-not-allowed" : ""
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <div>
-                                <div className="font-medium text-sm">{`${s.firstName} ${s.lastName}`}</div>
+                                <div className="font-medium text-sm">
+                                  {`${s.firstName} ${s.lastName}`}
+                                </div>
                                 <div className="text-xs text-slate-500">
                                   {s.email ?? s.usn}
                                 </div>
@@ -269,22 +278,20 @@ useEffect(() => {
               </div>
 
               <div className="flex gap-2">
-                <button
-                  onClick={handleSave}
-                  className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
-                >
+                <IconButton title="Save" onClick={handleSave} tone="primary">
                   Save
-                </button>
-                <button
+                </IconButton>
+                <IconButton
+                  title="Cancel"
                   onClick={() => {
                     setReplaceOpen(false);
                     setQuery("");
                     setSelectedStudent(null);
                   }}
-                  className="rounded-lg border px-3 py-2 text-xs"
+                  tone="default"
                 >
                   Cancel
-                </button>
+                </IconButton>
               </div>
             </div>
           </td>

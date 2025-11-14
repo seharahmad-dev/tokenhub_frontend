@@ -4,8 +4,8 @@ import Modal from "../../components/common/Modal";
 import EmptyState from "../../components/common/EmptyState";
 import AdminNavbar from "../../components/AdminNavbar";
 import HodToolbar from "../../components/admin/hod/HodToolbar";
-import HodForm, { HodPayload } from "../../components/admin/hod/HodForm";
-import HodRow, { Hod } from "../../components/admin/hod/HodRow";
+import HodForm from "../../components/admin/hod/HodForm";
+import HodRow from "../../components/admin/hod/HodRow";
 
 /** choose API base by role - HOD service removed; use Faculty service only */
 const getApiBase = (role: "Admin" | "Student" | "Faculty" | "HOD" | "Club") => {
@@ -258,142 +258,179 @@ export default function HodPage() {
   };
 
   return (
-    <div className="container 2xl:px-0 px-4">
+    <div className="min-h-screen bg-slate-50">
       <AdminNavbar />
-      <div className="mx-auto max-w-[1280px] py-8">
-        <header className="mb-6 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold">HODs</h1>
-            <p className="text-slate-600">Assign, update, remove and search HODs (backed by Faculty).</p>
+      <div className="container 2xl:px-0 px-4">
+        <div className="mx-auto max-w-[1280px] py-8">
+          <header className="mb-6 flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-900">HODs</h1>
+              <p className="text-sm text-slate-600">Assign, update, remove and search HODs (backed by Faculty).</p>
+            </div>
+            
+          </header>
+
+          <div className="mb-6">
+            <HodToolbar q={q} onQChange={setQ} branch={branch} onBranchChange={setBranch} onAdd={() => openAssignModal()} />
           </div>
-        </header>
 
-        <HodToolbar q={q} onQChange={setQ} branch={branch} onBranchChange={setBranch} onAdd={() => openAssignModal()} />
-
-        <div className="overflow-hidden rounded-xl border bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-slate-600">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Name</th>
-                  <th className="px-3 py-2 font-medium">Branch</th>
-                  <th className="px-3 py-2 font-medium">Phone</th>
-                  <th className="px-3 py-2 font-medium">Tenure</th>
-                  <th className="px-3 py-2 font-medium">Email</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+          <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-left text-slate-700">
                   <tr>
-                    <td className="px-3 py-8" colSpan={6}>
-                      Loading…
-                    </td>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Branch</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td className="px-3 py-6" colSpan={6}>
-                      <EmptyState title="No HODs" subtitle="Try adjusting filters or assign a HOD." />
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((h) => (
-                    <HodRow
-                      key={h._id}
-                      h={h}
-                      onEdit={(row) => {
-                        setEditRow(row);
-                        setEditOpen(true);
-                      }}
-                      onDelete={handleDelete}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td className="px-4 py-12" colSpan={6}>
+                        <div className="flex items-center justify-center gap-3">
+                          <div className="w-3 h-3 rounded-full bg-red-600 animate-pulse" />
+                          <span className="text-slate-600">Loading…</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-8" colSpan={6}>
+                        <EmptyState title="No HODs" subtitle="Try adjusting filters or assign a HOD." />
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((h) => (
+                      <HodRow
+                        key={h._id}
+                        h={h}
+                        onEdit={(row) => {
+                          setEditRow(row);
+                          setEditOpen(true);
+                        }}
+                        onDelete={handleDelete}
+                      />
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
+
+        {/* Assign HOD Modal */}
+        <Modal open={assignOpen} title="Assign HOD" onClose={closeAssignModal}>
+          <div className="space-y-4">
+            {facLoading ? (
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-red-600 animate-pulse" />
+                <span className="text-slate-600">Loading faculties…</span>
+              </div>
+            ) : faculties.length === 0 ? (
+              <EmptyState title="No eligible faculties" subtitle="All faculties already assigned as HOD or none exist." />
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">Select Faculty</label>
+                  <select
+                    className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
+                    value={selectedFacultyId ?? ""}
+                    onChange={(e) => setSelectedFacultyId(e.target.value || null)}
+                  >
+                    <option value="">— choose faculty —</option>
+                    {faculties.map((f) => (
+                      <option key={f._id} value={f._id}>
+                        {f.firstName} {f.lastName} — {f.branch} — {f.collegeEmail ?? f.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700">Branch (assign as HOD for)</label>
+                  <select
+                    className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value as "CSE" | "ISE" | "ECE" | "")}
+                  >
+                    <option value="">— select branch —</option>
+                    <option value="CSE">CSE</option>
+                    <option value="ISE">ISE</option>
+                    <option value="ECE">ECE</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  <button onClick={closeAssignModal} className="rounded-lg border border-slate-200 px-3 py-1 text-sm hover:bg-slate-50">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAssign}
+                    disabled={!selectedFacultyId || !selectedBranch || assignLoading}
+                    className={
+                      "rounded-lg px-3 py-1 text-sm font-medium text-white shadow-sm " +
+                      (!selectedFacultyId || !selectedBranch || assignLoading
+                        ? "bg-red-400/60 cursor-not-allowed"
+                        : "bg-red-600 hover:bg-red-700")
+                    }
+                  >
+                    {assignLoading ? "Assigning…" : "Assign"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+
+        {/* Edit HOD (edits the underlying faculty) */}
+        <Modal open={editOpen} title="Edit HOD (Faculty)" onClose={() => { setEditOpen(false); setEditRow(null); }}>
+          <HodForm
+            mode="edit"
+            initial={
+              editRow
+                ? {
+                    firstName: editRow.firstName,
+                    lastName: editRow.lastName,
+                    branch: editRow.branch as "" | "CSE" | "ISE" | "ECE",
+                    phone: editRow.phone,
+                    tenureStart: (editRow as any).tenureStart ?? "",
+                    tenureEnd: (editRow as any).tenureEnd ?? "",
+                  }
+                : undefined
+            }
+            onSubmit={handleUpdate}
+            onCancel={() => {
+              setEditOpen(false);
+              setEditRow(null);
+            }}
+          />
+        </Modal>
       </div>
-
-      {/* Assign HOD Modal */}
-      <Modal open={assignOpen} title="Assign HOD" onClose={closeAssignModal}>
-        <div className="space-y-4">
-          {facLoading ? (
-            <div>Loading faculties…</div>
-          ) : faculties.length === 0 ? (
-            <EmptyState title="No eligible faculties" subtitle="All faculties already assigned as HOD or none exist." />
-          ) : (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Select Faculty</label>
-                <select
-                  className="mt-2 w-full rounded-md border p-2"
-                  value={selectedFacultyId ?? ""}
-                  onChange={(e) => setSelectedFacultyId(e.target.value || null)}
-                >
-                  <option value="">— choose faculty —</option>
-                  {faculties.map((f) => (
-                    <option key={f._id} value={f._id}>
-                      {f.firstName} {f.lastName} — {f.branch} — {f.collegeEmail ?? f.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Branch (assign as HOD for)</label>
-                <select
-                  className="mt-2 w-full rounded-md border p-2"
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value as "CSE" | "ISE" | "ECE" | "")}
-                >
-                  <option value="">— select branch —</option>
-                  <option value="CSE">CSE</option>
-                  <option value="ISE">ISE</option>
-                  <option value="ECE">ECE</option>
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-2">
-                <button onClick={closeAssignModal} className="rounded-md border px-3 py-1 text-sm hover:bg-slate-50">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAssign}
-                  disabled={!selectedFacultyId || !selectedBranch || assignLoading}
-                  className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white disabled:opacity-60"
-                >
-                  Assign
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </Modal>
-
-      {/* Edit HOD (edits the underlying faculty) */}
-      <Modal open={editOpen} title="Edit HOD (Faculty)" onClose={() => { setEditOpen(false); setEditRow(null); }}>
-        <HodForm
-          mode="edit"
-          initial={
-            editRow
-              ? {
-                  firstName: editRow.firstName,
-                  lastName: editRow.lastName,
-                  branch: editRow.branch as "" | "CSE" | "ISE" | "ECE",
-                  phone: editRow.phone,
-                  tenureStart: (editRow as any).tenureStart ?? "",
-                  tenureEnd: (editRow as any).tenureEnd ?? "",
-                }
-              : undefined
-          }
-          onSubmit={handleUpdate}
-          onCancel={() => {
-            setEditOpen(false);
-            setEditRow(null);
-          }}
-        />
-      </Modal>
     </div>
   );
 }
+
+/* types */
+export type Hod = {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  branch: "CSE" | "ISE" | "ECE" | string;
+  email: string;
+  phone?: string;
+  tenureStart?: string;
+  tenureEnd?: string;
+};
+
+export type HodPayload = {
+  firstName: string;
+  lastName: string;
+  branch: "CSE" | "ISE" | "ECE" | "";
+  email?: string;        // required at register
+  password?: string;     // required at register
+  phone?: string;
+  tenureStart?: string;  // ISO yyyy-mm-dd
+  tenureEnd?: string;    // ISO yyyy-mm-dd
+};

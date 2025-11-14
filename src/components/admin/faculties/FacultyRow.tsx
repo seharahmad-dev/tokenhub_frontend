@@ -1,10 +1,12 @@
+import IconButton from "../../common/IconButton";
+
 export type Faculty = {
   _id: string;
   firstName: string;
   lastName: string;
-  branch: string;       // backend returns string
+  branch: string;
   collegeEmail: string;
-  designation?: string; // optional in backend
+  designation?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -17,27 +19,17 @@ type Props = {
 
 export default function FacultyRow({ f, onEdit, onDelete }: Props) {
   return (
-    <tr className="border-t">
-      <td className="px-3 py-2">
+    <tr className="border-b last:border-none hover:bg-red-50/20 transition-colors">
+      <td className="px-4 py-3">
         <div className="font-medium">{f.firstName} {f.lastName}</div>
       </td>
-      <td className="px-3 py-2">{f.branch}</td>
-      <td className="px-3 py-2">{f.designation ?? "-"}</td>
-      <td className="px-3 py-2">{f.collegeEmail}</td>
-      <td className="px-3 py-2">
+      <td className="px-4 py-3">{f.branch}</td>
+      <td className="px-4 py-3">{f.designation ?? "-"}</td>
+      <td className="px-4 py-3">{f.collegeEmail}</td>
+      <td className="px-4 py-3 text-right">
         <div className="flex justify-end gap-2">
-          <button
-            onClick={() => onEdit(f)}
-            className="rounded-lg border px-3 py-1.5 text-xs hover:bg-slate-50"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => onDelete(f._id)}
-            className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
-          >
-            Delete
-          </button>
+          <IconButton title="Edit" onClick={() => onEdit(f)}>✎ Edit</IconButton>
+          <IconButton title="Delete" onClick={() => onDelete(f._id)} tone="danger">🗑 Delete</IconButton>
         </div>
       </td>
     </tr>

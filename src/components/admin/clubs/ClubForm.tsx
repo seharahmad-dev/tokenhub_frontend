@@ -1,4 +1,3 @@
-// components/admin/clubs/ClubForm.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 
@@ -24,7 +23,7 @@ type Props = {
 
 // Prefer environment-configured endpoints (adjust in Vite)
 const STUDENTS_API = import.meta.env.VITE_STUDENTS_API || "http://localhost:4002/api/student/all";
-const TOKEN_API = import.meta.env.VITE_TOKEN_API || ""; // e.g. "http://localhost:4000" -> GET ${TOKEN_API}/token
+const TOKEN_API = import.meta.env.VITE_TOKEN_API || "";
 
 export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
   const [clubName, setClubName] = useState("");
@@ -60,15 +59,9 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
     let mounted = true;
     const tryFetchToken = async () => {
       if (accessToken) return; // already present
-
-      if (!TOKEN_API) {
-        // no token endpoint configured — proceed without token
-        return;
-      }
-
+      if (!TOKEN_API) return;
       setFetchingToken(true);
       try {
-        // backend endpoint should return { access_token: "..." } or { token: "..." }
         const resp = await axios.get(`${TOKEN_API.replace(/\/$/, "")}/token`, { withCredentials: true });
         const token = resp?.data?.access_token ?? resp?.data?.token ?? null;
         if (mounted && token) {
@@ -85,11 +78,8 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
         if (mounted) setFetchingToken(false);
       }
     };
-
     tryFetchToken();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [accessToken]);
 
   // Helper to build headers for student requests
@@ -107,8 +97,8 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
     axios
       .get(STUDENTS_API, {
         headers: studentRequestHeaders(),
-        withCredentials: true, // if your student API requires cookies, otherwise can be removed
-        timeout: 10000
+        withCredentials: true,
+        timeout: 10000,
       })
       .then((res) => {
         const body = res.data;
@@ -135,10 +125,8 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
         }
       });
 
-    return () => {
-      mounted = false;
-    };
-  }, [accessToken]); // re-run when token changes
+    return () => { mounted = false; };
+  }, [accessToken]);
 
   // client-side filtering (name / usn / email)
   const filtered = useMemo(() => {
@@ -194,7 +182,6 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
       if (e.key === "ArrowDown") setShowDropdown(true);
       return;
     }
-
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightIndex((prev) => Math.min(prev + 1, filtered.length - 1));
@@ -222,7 +209,7 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
       return;
     }
     const payload: ClubCreatePayload = {
-      clubName,
+      clubName: clubName.trim(),
       members: [{ studentId: headStudentId, role: "Club Head" }],
     };
     onSubmit(payload);
@@ -246,13 +233,13 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-3 relative">
+    <form onSubmit={submit} className="space-y-4 relative">
       <div>
-        <label className="text-xs text-slate-600">Club name</label>
+        <label className="text-sm font-medium text-slate-700 block">Club name</label>
         <input
           value={clubName}
           onChange={(e) => setClubName(e.target.value)}
-          className="w-full rounded-lg border px-3 py-2 text-sm"
+          className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
           placeholder="e.g. Robotics Club"
           required
         />
@@ -260,7 +247,7 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
 
       {/* Search + select Club Head */}
       <div className="relative">
-        <label className="text-xs text-slate-600">Club Head (search name / USN / email)</label>
+        <label className="text-sm font-medium text-slate-700 block">Club Head (search name / USN / email)</label>
         <input
           ref={inputRef}
           value={query}
@@ -273,7 +260,7 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
           onFocus={() => setShowDropdown(true)}
           onKeyDown={onKeyDown}
           placeholder="Search student by name, USN or email"
-          className="w-full rounded-lg border px-3 py-2 text-sm"
+          className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
           autoComplete="off"
           aria-autocomplete="list"
           aria-expanded={showDropdown}
@@ -281,7 +268,7 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
         />
 
         {headStudent && (
-          <div className="mt-1 text-sm text-slate-700 flex items-center gap-2">
+          <div className="mt-2 text-sm text-slate-700 flex items-center gap-3 rounded-md border border-slate-100 bg-white p-3">
             <div>
               <div className="font-medium">{`${headStudent.firstName} ${headStudent.lastName}`}</div>
               <div className="text-xs text-slate-500">{headStudent.email ?? headStudent.usn}</div>
@@ -303,7 +290,7 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
             ref={dropdownRef}
             role="listbox"
             aria-label="Student search results"
-            className="absolute z-50 mt-1 w-full max-h-56 overflow-auto rounded-md border bg-white shadow-lg"
+            className="absolute z-50 mt-2 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg"
           >
             {loadingStudents ? (
               <div className="p-3 text-sm">Loading students...</div>
@@ -318,9 +305,7 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
                     type="button"
                     onClick={() => onSelectStudent(s)}
                     onMouseEnter={() => setHighlightIndex(idx)}
-                    className={`w-full text-left px-3 py-2 hover:bg-slate-50 focus:bg-slate-50 ${
-                      isHighlighted ? "bg-slate-100" : ""
-                    }`}
+                    className={`w-full text-left px-3 py-2 hover:bg-slate-50 focus:bg-slate-50 ${isHighlighted ? "bg-slate-100" : ""}`}
                     role="option"
                     aria-selected={isHighlighted}
                   >
@@ -339,14 +324,14 @@ export default function ClubForm({ onSubmit, onCancel, busy }: Props) {
         )}
       </div>
 
-      <div className="flex justify-end gap-2 pt-2">
-        <button type="button" onClick={onCancel} className="rounded-lg border px-4 py-2 text-sm">
+      <div className="flex justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50">
           Cancel
         </button>
         <button
           disabled={busy}
           type="submit"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          className={`rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm ${busy ? "bg-red-400/60 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"}`}
         >
           Create
         </button>

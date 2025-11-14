@@ -1,3 +1,4 @@
+// src/components/common/TextInput.tsx
 import { InputHTMLAttributes } from "react";
 
 export default function TextInput({
@@ -8,10 +9,7 @@ export default function TextInput({
   return (
     <label className="block">
       <span className="text-sm font-medium text-slate-700">{label}</span>
-      <input
-        {...props}
-        className="mt-1 w-full rounded-lg border px-3 py-2 text-sm outline-none ring-0 focus:border-slate-400"
-      />
+      <input {...props} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-red-300" />
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </label>
   );

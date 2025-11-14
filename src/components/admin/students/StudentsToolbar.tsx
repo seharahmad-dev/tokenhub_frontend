@@ -5,7 +5,7 @@ export default function StudentsToolbar({
   onQChange,
   branch,
   onBranchChange,
-  onAdd
+  onAdd,
 }: {
   q: string;
   onQChange: (v: string) => void;
@@ -14,18 +14,19 @@ export default function StudentsToolbar({
   onAdd: () => void;
 }) {
   return (
-    <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex w-full gap-3">
         <input
           value={q}
-          onChange={e => onQChange(e.target.value)}
+          onChange={(e) => onQChange(e.target.value)}
           placeholder="Search by name, email or USN…"
-          className="w-full rounded-lg border px-3 py-2 text-sm sm:w-80"
+          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
         />
+
         <select
           value={branch}
-          onChange={e => onBranchChange(e.target.value)}
-          className="w-full rounded-lg border px-3 py-2 text-sm sm:w-40"
+          onChange={(e) => onBranchChange(e.target.value)}
+          className="w-40 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
         >
           <option value="">All branches</option>
           <option value="CSE">CSE</option>
@@ -34,9 +35,11 @@ export default function StudentsToolbar({
         </select>
       </div>
 
-      <IconButton title="Add Student" onClick={onAdd} tone="primary">
-        <span>＋</span> Add Student
-      </IconButton>
+      <div className="flex gap-2">
+        <IconButton title="Add Student" onClick={onAdd} tone="primary">
+          <span>＋</span> Add
+        </IconButton>
+      </div>
     </div>
   );
 }
