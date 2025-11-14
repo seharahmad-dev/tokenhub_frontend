@@ -23,11 +23,22 @@ type Student = {
 type Club = { _id: string; clubName: string };
 type EventRow = { _id: string; title: string; schedule?: string; venue?: string };
 type LeaderboardRow = { _id: string; name: string; points: number };
+type RegistrationRow = {
+  _id: string;
+  eventId: string;
+  teamName?: string;
+  participantsId?: string[];
+  teamLeaderId?: string;
+  paymentId?: string;
+  verifiedUsers?: string[];
+  date?: string;
+};
 
 const STUDENT_API = import.meta.env.VITE_STUDENT_API as string;
 const CLUB_API = import.meta.env.VITE_CLUB_API as string;
-const REG_API = import.meta.env.VITE_REG_API as string;
+const REG_API = import.meta.env.VITE_REG_API as string; // registrations service
 const TOKEN_API = (import.meta.env.VITE_TOKEN_API as string) || "";
+const EVENT_API = (import.meta.env.VITE_EVENT_API as string) || ""; // events service
 
 export default function StudentDashboard() {
   const [me, setMe] = useState<Student | null>(null);
@@ -105,36 +116,101 @@ export default function StudentDashboard() {
           setClubs([]);
         }
 
-        // 3) registrations -> events participated
+        // 3) events + registrations -> compute participated events (mirror Events page 'mine' logic)
         try {
-          const studentIdentifier = profile._id || profile.email;
-          const r = await axios.get(`${REG_API}/registrations/${encodeURIComponent(studentIdentifier)}`, auth);
-          const regs = r?.data?.data ?? r?.data ?? [];
-          const evList: EventRow[] = [];
-          for (const reg of regs) {
-            const ev = reg.eventId ?? reg.event ?? reg.event_id ?? null;
-            if (!ev) continue;
-            evList.push({
-              _id: String(ev._id ?? ev.id ?? ev),
-              title: String(ev.title ?? `Event ${String(ev._id ?? ev.id ?? ev)}`),
-              schedule: ev.schedule ? String(ev.schedule) : undefined,
-              venue: ev.venue ? String(ev.venue) : undefined,
-            });
-          }
-          const map = new Map<string, EventRow>();
-          evList.forEach((e) => map.set(e._id, e));
-          if (!mounted) return;
-          setEventsParticipated(Array.from(map.values()));
-        } catch (err) {
-          console.error("Failed fetching registrations for student:", err);
-          setEventsParticipated([]);
-        }
+          // fetch all events and student's registrations in parallel
+          const eventReq = EVENT_API ? axios.get(`${EVENT_API}/event/all`, auth) : Promise.resolve({ data: [] });
+          const regReq =
+            profile && profile._id ? axios.get(`${REG_API}/registrations/student/${profile._id}`, auth) : Promise.resolve({ data: [] });
 
-        // 4) tokens/points (local fallback)
-        const storedTokens = Number(sessionStorage.getItem("availableTokens") || "0");
-        const storedRedeemed = Number(sessionStorage.getItem("redeemedTokens") || "0");
-        setTokens(storedTokens);
-        setPoints(storedTokens + storedRedeemed);
+          const [eventRes, regRes] = await Promise.all([eventReq, regReq]);
+
+          if (!mounted) return;
+
+          // Normalize events array and keep only approved ones
+          const allEventsRaw: any[] = eventRes?.data?.data ?? eventRes?.data ?? [];
+          const approvedEventsRaw = Array.isArray(allEventsRaw)
+            ? allEventsRaw.filter((r) => String(r.permission ?? "").toLowerCase() === "approved")
+            : [];
+
+          // Map to EventRow shape
+          const approvedEvents: EventRow[] = approvedEventsRaw.map((ev: any) => ({
+            _id: String(ev._id ?? ev.id ?? ""),
+            title: String(ev.title ?? ev.name ?? `Event ${String(ev._id ?? ev.id ?? "")}`),
+            schedule: ev.schedule ? String(ev.schedule) : undefined,
+            venue: ev.venue ? String(ev.venue) : undefined,
+          }));
+
+          // Load local fallback registered/participated lists if any
+          const localRegistered = (() => {
+            try {
+              return JSON.parse(sessionStorage.getItem("registeredEventIds") || "[]");
+            } catch {
+              return [];
+            }
+          })();
+          const localParticipated = (() => {
+            try {
+              return JSON.parse(sessionStorage.getItem("participatedEventIds") || "[]");
+            } catch {
+              return [];
+            }
+          })();
+
+          const mineSet = new Set<string>([...(localRegistered ?? []), ...(localParticipated ?? [])]);
+
+          // Normalize registration response (could be wrapped or direct)
+          const regData: RegistrationRow[] = regRes?.data?.data ?? regRes?.data ?? [];
+
+          if (Array.isArray(regData)) {
+            for (const r of regData) {
+              if (!r || !r.eventId) continue;
+              const leaderMatches = !!profile && !!r.teamLeaderId && String(r.teamLeaderId) === String(profile._id);
+              const verifiedMatches =
+                !!profile && Array.isArray(r.verifiedUsers) && r.verifiedUsers.some((id) => String(id) === String(profile._id));
+
+              if (leaderMatches || verifiedMatches) {
+                mineSet.add(String(r.eventId));
+              }
+            }
+          } else if (regData && typeof regData === "object") {
+            // defensive single-object case
+            const r = regData as RegistrationRow;
+            const leaderMatches = !!profile && !!r.teamLeaderId && String(r.teamLeaderId) === String(profile._id);
+            const verifiedMatches =
+              !!profile && Array.isArray(r.verifiedUsers) && r.verifiedUsers.some((id) => String(id) === String(profile._id));
+            if (leaderMatches || verifiedMatches) mineSet.add(String(r.eventId));
+          }
+
+          // Now pick approved events that are in mineSet (this mirrors the Events 'My Events' filter)
+          const participatedEvents = approvedEvents.filter((e) => e._id && mineSet.has(e._id));
+          setEventsParticipated(participatedEvents);
+        } catch (evErr) {
+          console.error("Failed fetching events/registrations for dashboard:", evErr);
+          // fallback: keep previous approach if available (try earlier registrations endpoint)
+          try {
+            const studentIdentifier = profile._id || profile.email;
+            const r = await axios.get(`${REG_API}/registrations/${encodeURIComponent(studentIdentifier)}`, { headers: { Authorization: `Bearer ${token}` }, withCredentials: true });
+            const regs = r?.data?.data ?? r?.data ?? [];
+            const evList: EventRow[] = [];
+            for (const reg of regs) {
+              const ev = reg.eventId ?? reg.event ?? reg.event_id ?? null;
+              if (!ev) continue;
+              evList.push({
+                _id: String(ev._id ?? ev.id ?? ev),
+                title: String(ev.title ?? `Event ${String(ev._id ?? ev.id ?? ev)}`),
+                schedule: ev.schedule ? String(ev.schedule) : undefined,
+                venue: ev.venue ? String(ev.venue) : undefined,
+              });
+            }
+            const map = new Map<string, EventRow>();
+            evList.forEach((e) => map.set(e._id, e));
+            if (mounted) setEventsParticipated(Array.from(map.values()));
+          } catch (fallbackErr) {
+            console.error("Fallback registrations->events failed:", fallbackErr);
+            if (mounted) setEventsParticipated([]);
+          }
+        }
       } catch (e: any) {
         setErr(e?.response?.data?.message || "Failed to load dashboard");
       } finally {
@@ -148,7 +224,7 @@ export default function StudentDashboard() {
     };
   }, [token, userObj]);
 
-  // === LEADERBOARD FETCH & user highlight ===
+  // === LEADERBOARD FETCH & top-rows ===
   useEffect(() => {
     let mounted = true;
     const fetchLeaderboard = async () => {
@@ -201,6 +277,29 @@ export default function StudentDashboard() {
     };
   }, [token]);
 
+  // Sync logged-in user's points/tokens with leaderboard result (prefer token service)
+  useEffect(() => {
+    if (!me) return;
+    const byId = leaderboardRows.find((r) => r._id === me._id || r._id === me.email);
+    if (byId) {
+      setPoints(byId.points);
+      setTokens(byId.points);
+      return;
+    }
+    const fullName = `${me.firstName} ${me.lastName}`.trim();
+    const byName = leaderboardRows.find((r) => r.name === fullName);
+    if (byName) {
+      setPoints(byName.points);
+      setTokens(byName.points);
+      return;
+    }
+    // fallback to sessionStorage if token service has no entry for this user
+    const storedTokens = Number(sessionStorage.getItem("availableTokens") || "0");
+    const storedRedeemed = Number(sessionStorage.getItem("redeemedTokens") || "0");
+    setTokens(storedTokens);
+    setPoints(storedTokens + storedRedeemed);
+  }, [leaderboardRows, me]);
+
   // Compose club list with roles (works with string[] or object[])
   const clubList = useMemo(() => {
     if (!me) return [];
@@ -223,62 +322,52 @@ export default function StudentDashboard() {
     return clubs.map((c) => ({ _id: c._id, name: c.clubName, role: roleMap.get(c._id) ?? "member" }));
   }, [clubs, me]);
 
-  // final leaderboard to pass to LeaderboardMini: prefer showing user first (highlight)
+  // final leaderboard to pass to LeaderboardMini: top N only (no pinned user)
   const shownLeaderboard = useMemo(() => {
-    // map server rows to Row shape expected by mini
     const full = leaderboardRows.map((r) => ({ studentId: r._id, name: r.name, totalTokens: r.points }));
-    if (!me) return full.slice(0, visibleCount);
-    // attempt to find user index
-    const userKey = me._id ?? me.email ?? "";
-    const idx = full.findIndex((r) => r.studentId === userKey || r.studentId === (me.email ?? ""));
-    let rank = idx >= 0 ? idx + 1 : -1;
-    if (rank === -1) {
-      const nm = `${me.firstName} ${me.lastName}`.trim();
-      const byNameIdx = full.findIndex((r) => r.name === nm);
-      if (byNameIdx >= 0) rank = byNameIdx + 1;
-    }
-
-    const userRow = {
-      studentId: me._id ?? crypto.randomUUID(),
-      name: rank > 0 ? `You • ${me.firstName} ${me.lastName} (#${rank})` : `You • ${me.firstName} ${me.lastName}`,
-      totalTokens: points,
-    };
-
-    // build top list excluding a possible duplicate of user
-    const filtered = full.filter((r) => r.studentId !== userRow.studentId && r.name !== `${me.firstName} ${me.lastName}`);
-    const top = filtered.slice(0, Math.max(visibleCount - 1, 0));
-    return [userRow, ...top];
-  }, [leaderboardRows, me, visibleCount, points]);
+    return full.slice(0, visibleCount);
+  }, [leaderboardRows, visibleCount]);
 
   const hasMore = leaderboardRows.length > visibleCount;
   const isShowingAll = leaderboardRows.length > 0 && visibleCount >= leaderboardRows.length;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <StudentNavbar tokens={tokens} />
 
       <main className="container 2xl:px-0 px-4">
-        <div className="max-w-[1280px] mx-auto py-8">
+        <div className="max-w-[1280px] mx-auto py-10">
           {loading ? (
-            <div className="rounded-xl border bg-white p-8 text-center">Loading…</div>
+            <div className="rounded-2xl bg-white/80 p-10 shadow-lg border border-blue-100 text-center">Loading…</div>
           ) : err ? (
-            <div className="rounded-xl border bg-white p-4 text-rose-600">{err}</div>
+            <div className="rounded-2xl bg-white p-4 shadow-sm border border-rose-100 text-rose-600">{err}</div>
           ) : !me ? (
-            <div className="rounded-xl border bg-white p-8">
+            <div className="rounded-2xl bg-white p-8 shadow-sm border border-blue-100">
               <EmptyState title="Not signed in" subtitle="Please login again." />
             </div>
           ) : (
             <div className="grid lg:grid-cols-12 gap-6">
               {/* LEFT */}
               <div className="lg:col-span-8 space-y-6">
-                <div className="rounded-xl border bg-white p-5">
-                  <h1 className="text-xl font-semibold">
-                    Hey, {me.firstName} {me.lastName}
-                  </h1>
-                  <p className="mt-1 text-slate-600">
-                    Branch: <b>{me.branch}</b> • Semester: <b>{me.semester}</b>
-                  </p>
+                <div className="rounded-2xl bg-white p-6 shadow-md border border-blue-100">
+                  <h1 className="text-2xl font-semibold text-slate-900">Welcome back, {me.firstName} 👋</h1>
+                  <p className="mt-2 text-slate-600">{me.branch} • Semester {me.semester}</p>
+
+               
                 </div>
+                <SectionCard
+                  title="Suggested for you"
+                  action={
+                    <a className="text-sm text-blue-600 hover:underline" href="/student/explore">
+                      Explore
+                    </a>
+                  }
+                >
+                  <div className="rounded-xl border border-dashed border-blue-50 bg-white p-4 text-sm text-slate-600">
+                    Placeholder — hook this to your RAG service. Show 3–5 recommended events based on
+                    branch/interest/history.
+                  </div>
+                </SectionCard>
 
                 <SectionCard
                   title="Club Participation"
@@ -288,7 +377,9 @@ export default function StudentDashboard() {
                     </a>
                   }
                 >
-                  <ClubsMini items={clubList} />
+                  <div className="rounded-xl bg-white p-4">
+                    <ClubsMini items={clubList} />
+                  </div>
                 </SectionCard>
 
                 <SectionCard
@@ -299,28 +390,18 @@ export default function StudentDashboard() {
                     </a>
                   }
                 >
-                  <EventsMini rows={eventsParticipated} />
-                </SectionCard>
-
-                <SectionCard
-                  title="Suggested for you (RAG)"
-                  action={
-                    <a className="text-sm text-blue-600 hover:underline" href="/student/explore">
-                      Explore
-                    </a>
-                  }
-                >
-                  <div className="rounded-lg border border-dashed p-4 text-sm text-slate-600">
-                    Placeholder — hook this to your RAG service. Show 3–5 recommended events based on
-                    branch/interest/history.
+                  <div className="rounded-xl bg-white p-4">
+                    <EventsMini rows={eventsParticipated} />
                   </div>
                 </SectionCard>
+
+                
               </div>
 
               {/* RIGHT */}
-              <aside className="lg:col-span-4 lg:sticky lg:top-24 self-start">
+              <aside className="lg:col-span-4 lg:sticky lg:top-28 self-start">
                 <SectionCard
-                  title="Leaderboard — Top"
+                  title="Leaderboard - Top 10"
                   action={
                     <a className="text-sm text-blue-600 hover:underline" href="/student/leaderboard">
                       View more
@@ -333,12 +414,14 @@ export default function StudentDashboard() {
                     <div className="p-4 text-rose-600">{leaderErr}</div>
                   ) : (
                     <>
-                      <LeaderboardMini rows={shownLeaderboard as any} myId={me?._id} />
+                      <div className="rounded-xl bg-white p-3">
+                        <LeaderboardMini rows={shownLeaderboard as any} />
+                      </div>
 
                       {leaderboardRows.length > 0 && (
                         <div className="mt-3 flex justify-center">
                           <button
-                            className="text-sm px-3 py-1 rounded-md border bg-white hover:bg-slate-50"
+                            className="text-sm px-3 py-1 rounded-full bg-white border border-blue-100 shadow-sm hover:bg-blue-50 text-blue-700"
                             onClick={() => {
                               if (isShowingAll) {
                                 setVisibleCount(10);
