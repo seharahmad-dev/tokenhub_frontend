@@ -1,4 +1,4 @@
-// StorePage.tsx
+// src/pages/student/StorePage.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import StoreItem, { StoreItemType } from "../../components/common/StoreItem";
 import CartDrawer from "../../components/common/CartDrawer";
@@ -75,7 +75,6 @@ export default function StorePage() {
         const baseURL = import.meta.env.VITE_TOKEN_API || "";
         const resp = await axios.get(`${baseURL}/token/${s._id}/total`, { withCredentials: true, timeout: 5000 });
         const data = resp?.data?.data ?? resp?.data;
-
         let avail: number | undefined;
         if (data && typeof data === "object") {
           if (typeof data.availableTokens === "number") avail = data.availableTokens;
@@ -84,8 +83,7 @@ export default function StorePage() {
           else if (data.token && typeof data.token.totalTokens === "number") avail = data.token.totalTokens;
         }
         setAvailableTokens(avail ?? null);
-      } catch (err) {
-        console.error("Failed to fetch tokens", err);
+      } catch {
         setAvailableTokens(null);
       } finally {
         setLoadingTokens(false);
@@ -94,86 +92,69 @@ export default function StorePage() {
     fetchTokens();
   }, [student?._id]);
 
-  // ----- image fetch logic (DummyJSON primary, FakeStore fallback) -----
   useEffect(() => {
     let mounted = true;
     const cache: Record<string, string | null> = {};
-    const fakeStoreCache: string[] | null = null;
+    let fakestoreCache: any[] | null = null;
 
-    // helper: try DummyJSON search by query -> returns first image url or null
-    const fetchFromDummy = async (q: string) => {
+    const fetchDummy = async (q: string) => {
       if (cache[q] !== undefined) return cache[q];
       try {
         const url = `https://dummyjson.com/products/search?q=${encodeURIComponent(q)}`;
         const r = await axios.get(url, { timeout: 6000 });
         const list = r?.data?.products ?? [];
         if (Array.isArray(list) && list.length > 0) {
-          // prefer image from product.images if available
-          const prod = list[0];
+          const prod = list.find((p: any) => p.images && p.images.length > 0) ?? list[0];
           const img = (prod?.images && prod.images.length > 0 && prod.images[0]) || prod?.thumbnail || null;
           cache[q] = img;
           return img;
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch {}
       cache[q] = null;
       return null;
     };
 
-    // helper: fallback to FakeStore - fetch once, try to match by keywords
-    let fakeStoreProducts: any[] | null = null;
-    const fetchFakeStore = async (q: string) => {
+    const fetchFake = async (q: string) => {
       if (cache[q] !== undefined) return cache[q];
       try {
-        if (!fakeStoreProducts) {
+        if (!fakestoreCache) {
           const r = await axios.get(`https://fakestoreapi.com/products`, { timeout: 8000 });
-          fakeStoreProducts = Array.isArray(r?.data) ? r.data : [];
+          fakestoreCache = Array.isArray(r?.data) ? r.data : [];
         }
-        const match = fakeStoreProducts.find((p) => (p.title || "").toLowerCase().includes(q.toLowerCase().split(" ")[0]));
+        const key = q.toLowerCase().split(" ")[0];
+        const match = fakestoreCache.find((p) => (p.title || "").toLowerCase().includes(key));
         const img = match?.image ?? null;
         cache[q] = img;
         return img;
-      } catch (e) {
+      } catch {
         cache[q] = null;
         return null;
       }
     };
 
-    // main: attempt to fetch images for items; update state batch-wise
     (async () => {
       const updated = [...items];
-      // process sequentially to avoid hammering APIs
       for (let i = 0; i < updated.length; i++) {
         const it = updated[i];
         const q = it.title.replace(/[()]/g, " ").split(" - ")[0];
-        let img = await fetchFromDummy(q);
-        if (!img) img = await fetchFakeStore(q);
-        // if still null, try more generic keyword (first word)
+        let img = await fetchDummy(q);
+        if (!img) img = await fetchFake(q);
         if (!img) {
           const kw = q.split(" ")[0];
-          if (kw && kw.length > 2) {
-            img = await fetchFromDummy(kw) || await fetchFakeStore(kw);
-          }
+          if (kw && kw.length > 2) img = (await fetchDummy(kw)) || (await fetchFake(kw));
         }
-        // final fallback: placeholder image URL (CDN-friendly)
-        if (!img) img = `https://via.placeholder.com/800x600.png?text=${encodeURIComponent(it.title)}`;
-
+        if (!img) img = `https://images.unsplash.com/photo-1581091215367-6a0b4d0d8b2a?q=80&w=1400&auto=format&fit=crop&ixlib=rb-4.0.3&s=${encodeURIComponent(it.title)}`;
         if (!mounted) return;
-        // update the specific item in state (preserve other fields)
         setItems((prev) => prev.map((p) => (p.id === it.id ? { ...p, image: img } : p)));
-        // tiny delay to be polite (optional)
-        await new Promise((res) => setTimeout(res, 120));
+        await new Promise((res) => setTimeout(res, 100));
       }
     })();
 
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once on mount
+  }, []); // run once
 
-  // ----- rest unchanged: cart handlers, checkout -----
   const addToCart = (it: StoreItemType) => {
     setCart((p) => {
       const f = p.find((x) => x.id === it.id);
@@ -215,7 +196,6 @@ export default function StorePage() {
       if (resp.status >= 200 && resp.status < 300) {
         const returned = resp?.data?.token ?? resp?.data ?? null;
         const newAvail = returned?.availableTokens ?? returned?.totalTokens ?? null;
-
         setMessage("Purchase successful — tokens deducted.");
         if (typeof newAvail === "number") setAvailableTokens(newAvail);
         else setAvailableTokens((prev) => (prev == null ? prev : prev - total));
@@ -233,37 +213,36 @@ export default function StorePage() {
       } else {
         setMessage("Network error while attempting purchase.");
       }
-      console.error("Checkout error", err);
     } finally {
       setCheckoutLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <StudentNavbar />
       <div className="container mx-auto px-4 py-10 max-w-7xl">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900">Campus Tech Store</h1>
+            <h1 className="text-3xl md:text-4xl font-normal text-slate-900">Campus Tech Store</h1>
             <p className="mt-1 text-slate-600 max-w-lg">Redeem tokens for tech essentials and accessories — curated for students.</p>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200 text-center">
+            <div className="bg-white px-5 py-3 rounded-xl shadow-sm border border-slate-100 text-center">
               <div className="text-xs text-slate-500">Available Balance</div>
-              <div className="text-xl font-semibold text-blue-600">
+              <div className="text-lg font-normal text-blue-600">
                 {loadingTokens ? <span className="text-sm">Loading...</span> : availableTokens != null ? `${availableTokens} tokens` : <span className="text-sm text-slate-400">--</span>}
               </div>
             </div>
 
             <button
               onClick={() => setCartOpen(true)}
-              className="relative px-5 py-3 rounded-2xl bg-blue-600 text-white font-semibold shadow-md hover:bg-blue-700 transition"
+              className="relative px-5 py-3 rounded-xl bg-blue-600 text-white font-normal shadow-md hover:bg-blue-700 transition"
             >
               Cart
               {cart.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs w-6 h-6 rounded-full flex items-center justify-center font-bold">
+                <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs w-6 h-6 rounded-full flex items-center justify-center font-semibold">
                   {cart.length}
                 </span>
               )}
@@ -273,13 +252,15 @@ export default function StorePage() {
 
         {message && (
           <div
-            className={`mb-6 p-4 rounded-lg border ${
-              message.toLowerCase().includes("success") ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+            className={`mb-6 p-4 rounded-xl border ${
+              message.toLowerCase().includes("success")
+                ? "bg-green-50 border-green-200 text-green-800"
+                : "bg-red-50 border-red-200 text-red-800"
             }`}
           >
             <div className="flex items-center gap-2">
               <span className="text-lg">{message.toLowerCase().includes("success") ? "✓" : "⚠"}</span>
-              <span className="font-medium">{message}</span>
+              <span className="font-normal">{message}</span>
             </div>
           </div>
         )}
