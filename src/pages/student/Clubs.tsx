@@ -28,8 +28,6 @@ export default function Clubs() {
         const res = await axios.get(`${CLUB_API}/club/all`, auth);
         const data = res.data?.data ?? res.data ?? [];
         if (!mounted) return;
-
-        // Normalize minimal fields, including isHiring boolean from backend
         const normalized: ClubDoc[] = (Array.isArray(data) ? data : []).map((c: any) => ({
           _id: String(c?._id),
           clubName: String(c?.clubName ?? "—"),
@@ -37,7 +35,6 @@ export default function Clubs() {
           status: c?.status ?? "active",
           logoUrl: c?.logoUrl ?? "",
           members: Array.isArray(c?.members) ? c.members : [],
-          // Make sure isHiring is a boolean (default false)
           isHiring: Boolean(c?.isHiring ?? false),
         }));
         setClubs(normalized);
@@ -48,49 +45,42 @@ export default function Clubs() {
       }
     }
     load();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [token]);
 
-  // President / head extractor
   const getHeadName = (c: ClubDoc) => {
-    const head = c.members?.find(m => {
+    const head = c.members?.find((m) => {
       const r = (m?.role || "").toString().toLowerCase();
       return r === "club head" || r === "clubhead" || r === "president";
     });
     return head?.name || head?.email || "—";
   };
 
-  // Use backend isHiring flag. Fallback to description heuristic if isHiring is false/absent.
   const hiringClubs = useMemo(() => {
-    // prefer explicit flag
-    const explicit = clubs.filter(c => c.isHiring === true);
+    const explicit = clubs.filter((c) => c.isHiring === true);
     if (explicit.length > 0) return explicit;
-
-    // fallback heuristic only if no explicit hiring flags present
-    return clubs.filter(c => /hire|recruit|opening|join our team|recruitment/i.test(c.description || ""));
+    return clubs.filter((c) => /hire|recruit|opening|join our team|recruitment/i.test(c.description || ""));
   }, [clubs]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <StudentNavbar />
 
       <main className="container 2xl:px-0 px-4">
         <div className="max-w-[1280px] mx-auto py-8 space-y-8">
           {loading ? (
-            <div className="rounded-xl border bg-white p-8 text-center">Loading…</div>
+            <div className="rounded-xl border border-blue-100 bg-white p-8 text-center shadow-sm">Loading…</div>
           ) : err ? (
-            <div className="rounded-xl border bg-white p-4 text-rose-600">{err}</div>
+            <div className="rounded-xl border border-rose-100 bg-white p-4 text-rose-600 shadow-sm">{err}</div>
           ) : clubs.length === 0 ? (
             <EmptyState title="No clubs yet" subtitle="Clubs will appear here once created." />
           ) : (
             <>
-              {/* Hiring first */}
               <SectionCard title="Clubs Hiring Now">
                 {hiringClubs.length === 0 ? (
-                  <EmptyState
-                    title="No active recruitments"
-                    subtitle="When clubs announce hiring, they’ll show up here."
-                  />
+                  <EmptyState title="No active recruitments" subtitle="When clubs announce hiring, they’ll show up here." />
                 ) : (
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {hiringClubs.map((c) => (
@@ -100,8 +90,6 @@ export default function Clubs() {
                         president={getHeadName(c)}
                         hiring
                         onApply={(id) => {
-                          // Hook this to your real apply flow
-                          // e.g. navigate(`/student/clubs/${id}/apply`)
                           alert(`Apply flow for club: ${id}`);
                         }}
                       />
@@ -110,14 +98,8 @@ export default function Clubs() {
                 )}
               </SectionCard>
 
-              {/* All clubs */}
               <SectionCard title="All Clubs">
-                <ClubsGrid
-                  items={clubs.map((c) => ({
-                    ...c,
-                    president: getHeadName(c),
-                  }))}
-                />
+                <ClubsGrid items={clubs.map((c) => ({ ...c, president: getHeadName(c) }))} />
               </SectionCard>
             </>
           )}
