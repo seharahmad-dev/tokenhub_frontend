@@ -19,31 +19,33 @@ export default function EditProfileForm({
 
   return (
     <div className="space-y-4">
-      <div>
-        <label className="text-sm font-medium">First Name</label>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <label className="text-sm font-medium text-slate-700">First Name</label>
         <input
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
-          className="mt-1 w-full rounded-lg border px-3 py-2"
+          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-300 outline-none"
         />
       </div>
 
-      <div>
-        <label className="text-sm font-medium">Last Name</label>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <label className="text-sm font-medium text-slate-700">Last Name</label>
         <input
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
-          className="mt-1 w-full rounded-lg border px-3 py-2"
+          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-300 outline-none"
         />
       </div>
 
-      <button
-        onClick={() => onSubmit({ firstName, lastName })}
-        disabled={loading}
-        className="rounded-lg bg-blue-600 text-white px-4 py-2 font-medium disabled:opacity-60"
-      >
-        {loading ? "Saving..." : "Save Changes"}
-      </button>
+      <div className="flex justify-end">
+        <button
+          onClick={() => onSubmit({ firstName, lastName })}
+          disabled={loading}
+          className="rounded-xl bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 text-sm font-medium shadow disabled:opacity-60"
+        >
+          {loading ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
     </div>
   );
 }

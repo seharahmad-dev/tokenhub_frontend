@@ -1,8 +1,11 @@
+import IconButton from "../../common/IconButton";
+
+/** Export Hod type so other modules can import it. */
 export type Hod = {
   _id: string;
   firstName: string;
   lastName: string;
-  branch: string;
+  branch: "CSE" | "ISE" | "ECE" | string;
   email: string;
   phone?: string;
   tenureStart?: string;
@@ -19,16 +22,16 @@ export default function HodRow({ h, onEdit, onDelete }: Props) {
   const name = `${h.firstName} ${h.lastName}`.trim();
   const tenure = [h.tenureStart, h.tenureEnd].filter(Boolean).join(" → ");
   return (
-    <tr className="border-t">
-      <td className="px-3 py-2">{name}</td>
-      <td className="px-3 py-2">{h.branch}</td>
-      <td className="px-3 py-2">{h.phone ?? "-"}</td>
-      <td className="px-3 py-2">{tenure || "-"}</td>
-      <td className="px-3 py-2">{h.email}</td>
-      <td className="px-3 py-2 text-right">
-        <div className="inline-flex gap-2">
-          <button onClick={()=>onEdit(h)} className="rounded-lg border px-3 py-1 text-xs">Edit</button>
-          <button onClick={()=>onDelete(h._id)} className="rounded-lg bg-rose-600 px-3 py-1 text-xs text-white">Delete</button>
+    <tr className="border-b last:border-none hover:bg-red-50/20 transition-colors">
+      <td className="px-4 py-3">
+        <div className="font-medium">{name || "—"}</div>
+      </td>
+      <td className="px-4 py-3">{h.branch ?? "-"}</td>
+      <td className="px-4 py-3">{h.email ?? "-"}</td>
+      <td className="px-4 py-3 text-right">
+        <div className="flex justify-end gap-2">
+          <IconButton title="Edit" onClick={() => onEdit(h)}>✎ Edit</IconButton>
+          <IconButton title="Delete" onClick={() => onDelete(h._id)} tone="danger">🗑 Delete</IconButton>
         </div>
       </td>
     </tr>
