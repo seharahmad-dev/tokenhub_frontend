@@ -1,5 +1,5 @@
 // src/components/faculty/FacultyEventsList.tsx
-import EventCard from "../../components/student/EventCard";
+import EventCard from "./EventCard";
 import EventsMini from "../../components/student/EventsMini";
 import EmptyState from "../common/EmptyState";
 
@@ -44,7 +44,7 @@ export default function FacultyEventsList({
   return (
     <div className="space-y-3">
       {events.map((ev) => (        
-        <EventCard key={ev._id} e={ev as any} participated={false} />
+        <EventCard key={ev._id} e={ev as any} />
       ))}
     </div>
   );

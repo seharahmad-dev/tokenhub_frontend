@@ -1,5 +1,5 @@
 // src/components/faculty/OrganizeEventModal.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { useAppSelector } from "../../app/hooks"; // your app hook to access redux
 
@@ -7,6 +7,29 @@ const CLUB_API = import.meta.env.VITE_CLUB_API as string;
 const EVENT_API = import.meta.env.VITE_EVENT_API as string;
 
 type Member = { studentId: string; name?: string; role?: string; email?: string; _id?: string };
+
+const INTEREST_OPTIONS = [
+  "Artificial Intelligence",
+  "Machine Learning",
+  "Web Development",
+  "Mobile App Development",
+  "Cybersecurity",
+  "Cloud Computing",
+  "DevOps",
+  "Blockchain",
+  "IoT (Internet of Things)",
+  "Data Science",
+  "Competitive Programming",
+  "Open Source",
+  "UI/UX Design",
+  "Game Development",
+  "Embedded Systems",
+  "AR/VR",
+  "Big Data",
+  "Software Engineering",
+  "Networking",
+  "Database Management",
+];
 
 export default function OrganizeEventModal({
   clubId,
@@ -34,7 +57,15 @@ export default function OrganizeEventModal({
   const [eligibilityBranch, setEligibilityBranch] = useState("*");
   const [semester, setSemester] = useState("*");
   const [selectedCoordinators, setSelectedCoordinators] = useState<string[]>([]);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // custom multi-select states
+  const [interestInput, setInterestInput] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState<number>(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const auth = useMemo(
     () => ({ headers: { Authorization: token ? `Bearer ${token}` : `Bearer ${sessionStorage.getItem("accessToken") || ""}` }, withCredentials: true }),
@@ -74,6 +105,74 @@ export default function OrganizeEventModal({
     };
   }, [open, clubId, auth]);
 
+  // close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+        setHighlightIndex(0);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // filtered options based on input and already selected
+  const filteredOptions = useMemo(() => {
+    const q = interestInput.trim().toLowerCase();
+    return INTEREST_OPTIONS.filter((it) => {
+      if (selectedInterests.includes(it)) return false;
+      if (!q) return true;
+      return it.toLowerCase().includes(q);
+    });
+  }, [interestInput, selectedInterests]);
+
+  // add interest
+  function addInterest(it: string) {
+    if (!it) return;
+    if (selectedInterests.includes(it)) return;
+    setSelectedInterests((s) => [...s, it]);
+    setInterestInput("");
+    setDropdownOpen(false);
+    // focus input for faster multiple additions
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  // remove interest
+  function removeInterest(it: string) {
+    setSelectedInterests((s) => s.filter((x) => x !== it));
+  }
+
+  // keyboard handling on the input
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setDropdownOpen(true);
+      setHighlightIndex((i) => Math.min(i + 1, Math.max(0, filteredOptions.length - 1)));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = filteredOptions[highlightIndex];
+      if (pick) addInterest(pick);
+      return;
+    }
+    if (e.key === "Backspace" && interestInput === "" && selectedInterests.length > 0) {
+      // remove last tag
+      e.preventDefault();
+      setSelectedInterests((s) => s.slice(0, -1));
+    }
+    if (e.key === "Escape") {
+      setDropdownOpen(false);
+    }
+  }
+
   if (!open) return null;
 
   async function submit(e?: any) {
@@ -99,6 +198,8 @@ export default function OrganizeEventModal({
         coordinators: selectedCoordinators.map((s) => ({ studentId: s })),
         // organise branch: pick studentBranch if present and not "*", else send empty string so backend can fallback
         organisingBranch: studentBranch && studentBranch !== "*" ? String(studentBranch) : "",
+        // selected interests
+        interests: selectedInterests,
       };
 
       const res = await axios.post(`${EVENT_API}/event/club/${clubId}/create`, payload, auth);
@@ -163,6 +264,77 @@ export default function OrganizeEventModal({
               <option value="7">7</option>
               <option value="8">8</option>
             </select>
+          </div>
+
+          {/* New tag-style interests input */}
+          <div ref={containerRef} className="relative">
+            <label className="block text-sm font-medium text-slate-700 mb-2">Interests (optional)</label>
+
+            <div
+              className="min-h-[44px] w-full rounded border px-3 py-2 flex items-center gap-2 flex-wrap"
+              onClick={() => {
+                setDropdownOpen(true);
+                setTimeout(() => inputRef.current?.focus(), 0);
+              }}
+            >
+              {selectedInterests.map((it) => (
+                <span key={it} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2 py-1 text-xs">
+                  <span>{it}</span>
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      removeInterest(it);
+                    }}
+                    className="text-slate-500"
+                    aria-label={`Remove ${it}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+
+              <input
+                ref={inputRef}
+                value={interestInput}
+                onChange={(e) => {
+                  setInterestInput(e.target.value);
+                  setDropdownOpen(true);
+                  setHighlightIndex(0);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder={selectedInterests.length === 0 ? "Type or pick interests…" : "Add more interests…"}
+                className="flex-1 min-w-[120px] outline-none text-sm"
+                aria-expanded={dropdownOpen}
+                aria-haspopup="listbox"
+              />
+            </div>
+
+            {/* dropdown */}
+            {dropdownOpen && (
+              <div className="absolute z-20 mt-1 w-full max-h-48 overflow-auto rounded border bg-white shadow" role="listbox">
+                {filteredOptions.length === 0 ? (
+                  <div className="p-2 text-sm text-slate-500">No matches</div>
+                ) : (
+                  filteredOptions.map((opt, idx) => (
+                    <div
+                      key={opt}
+                      onMouseDown={(ev) => {
+                        // use onMouseDown to avoid losing focus before click
+                        ev.preventDefault();
+                        addInterest(opt);
+                      }}
+                      onMouseEnter={() => setHighlightIndex(idx)}
+                      className={`px-3 py-2 cursor-pointer text-sm ${idx === highlightIndex ? "bg-slate-100" : ""}`}
+                      role="option"
+                      aria-selected={idx === highlightIndex}
+                    >
+                      {opt}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           <div>
