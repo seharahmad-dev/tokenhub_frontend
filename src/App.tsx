@@ -30,6 +30,7 @@ import FacultyDashboard from "./pages/faculty/Dashboard";
 import FacultyEventsPage from "./pages/faculty/Events";
 import HodPanel from "./pages/faculty/HodPanel";
 import EventManageWinners from "./pages/student/EventManageWinners";
+import QuizPage from "./pages/student/QuizPage";
 
 export default function App() {
   return (
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="/student/discuss/create" element={<DiscussCreate />} />
         <Route path="/student/discuss/:id" element={<DiscussDetail />} />
         <Route path="/student/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/student/quiz" element={<QuizPage />} />
         <Route path="/student/profile" element={<ProfilePage />} />
         <Route path="/student/manage-club" element={<ManageClubPage />} />
         <Route path="/student/event/:id" element={<EventManageWinners />} />
