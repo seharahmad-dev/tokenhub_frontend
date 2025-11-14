@@ -1,7 +1,6 @@
-// src/components/faculty/OrganizeEventModal.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
-import { useAppSelector } from "../../app/hooks"; // your app hook to access redux
+import { useAppSelector } from "../../app/hooks";
 
 const CLUB_API = import.meta.env.VITE_CLUB_API as string;
 const EVENT_API = import.meta.env.VITE_EVENT_API as string;
@@ -9,26 +8,10 @@ const EVENT_API = import.meta.env.VITE_EVENT_API as string;
 type Member = { studentId: string; name?: string; role?: string; email?: string; _id?: string };
 
 const INTEREST_OPTIONS = [
-  "Artificial Intelligence",
-  "Machine Learning",
-  "Web Development",
-  "Mobile App Development",
-  "Cybersecurity",
-  "Cloud Computing",
-  "DevOps",
-  "Blockchain",
-  "IoT (Internet of Things)",
-  "Data Science",
-  "Competitive Programming",
-  "Open Source",
-  "UI/UX Design",
-  "Game Development",
-  "Embedded Systems",
-  "AR/VR",
-  "Big Data",
-  "Software Engineering",
-  "Networking",
-  "Database Management",
+  "Artificial Intelligence","Machine Learning","Web Development","Mobile App Development","Cybersecurity",
+  "Cloud Computing","DevOps","Blockchain","IoT (Internet of Things)","Data Science","Competitive Programming",
+  "Open Source","UI/UX Design","Game Development","Embedded Systems","AR/VR","Big Data","Software Engineering",
+  "Networking","Database Management",
 ];
 
 export default function OrganizeEventModal({
@@ -60,7 +43,6 @@ export default function OrganizeEventModal({
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // custom multi-select states
   const [interestInput, setInterestInput] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState<number>(0);
@@ -72,7 +54,6 @@ export default function OrganizeEventModal({
     [token]
   );
 
-  // read student branch from Redux (if logged-in user is a student)
   const studentBranch = useAppSelector((state: any) => state?.student?.student?.branch ?? "");
 
   useEffect(() => {
@@ -100,12 +81,9 @@ export default function OrganizeEventModal({
       }
     };
     loadMembers();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [open, clubId, auth]);
 
-  // close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (!containerRef.current) return;
@@ -118,7 +96,6 @@ export default function OrganizeEventModal({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // filtered options based on input and already selected
   const filteredOptions = useMemo(() => {
     const q = interestInput.trim().toLowerCase();
     return INTEREST_OPTIONS.filter((it) => {
@@ -128,23 +105,19 @@ export default function OrganizeEventModal({
     });
   }, [interestInput, selectedInterests]);
 
-  // add interest
   function addInterest(it: string) {
     if (!it) return;
     if (selectedInterests.includes(it)) return;
     setSelectedInterests((s) => [...s, it]);
     setInterestInput("");
     setDropdownOpen(false);
-    // focus input for faster multiple additions
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  // remove interest
   function removeInterest(it: string) {
     setSelectedInterests((s) => s.filter((x) => x !== it));
   }
 
-  // keyboard handling on the input
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -164,7 +137,6 @@ export default function OrganizeEventModal({
       return;
     }
     if (e.key === "Backspace" && interestInput === "" && selectedInterests.length > 0) {
-      // remove last tag
       e.preventDefault();
       setSelectedInterests((s) => s.slice(0, -1));
     }
@@ -178,12 +150,10 @@ export default function OrganizeEventModal({
   async function submit(e?: any) {
     e?.preventDefault?.();
     setError(null);
-
     if (!title?.trim() || !description?.trim() || !venue?.trim() || !schedule || !capacity) {
       setError("Please fill required fields (title, description, venue, schedule, capacity).");
       return;
     }
-
     setSubmitting(true);
     try {
       const payload: any = {
@@ -193,12 +163,9 @@ export default function OrganizeEventModal({
         venue: venue.trim(),
         schedule: new Date(schedule).toISOString(),
         capacity: Number(capacity),
-        // eligibility is chosen by the form user
         eligibility: { branch: eligibilityBranch, semester },
         coordinators: selectedCoordinators.map((s) => ({ studentId: s })),
-        // organise branch: pick studentBranch if present and not "*", else send empty string so backend can fallback
         organisingBranch: studentBranch && studentBranch !== "*" ? String(studentBranch) : "",
-        // selected interests
         interests: selectedInterests,
       };
 
@@ -218,42 +185,42 @@ export default function OrganizeEventModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose}></div>
 
-      <form onSubmit={submit} className="relative z-10 w-full max-w-2xl rounded-lg bg-white p-5 shadow-xl">
+      <form onSubmit={submit} className="relative z-10 w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl border border-blue-100">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Organise Event</h3>
+          <h3 className="text-lg font-medium text-slate-900">Organise Event</h3>
           <button type="button" onClick={onClose} className="text-sm text-slate-500">Close</button>
         </div>
 
         {error && <div className="mt-3 text-sm text-rose-600">{error}</div>}
 
         <div className="grid gap-3 mt-4">
-          <input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title" className="w-full rounded border px-3 py-2" />
-          <textarea required value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description" className="w-full rounded border px-3 py-2 h-24" />
+          <input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title" className="w-full rounded-xl border border-blue-100 px-3 py-2 bg-white" />
+          <textarea required value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description" className="w-full rounded-xl border border-blue-100 px-3 py-2 h-24 bg-white" />
 
           <div className="grid sm:grid-cols-2 gap-3">
-            <select value={type} onChange={(e) => setType(e.target.value)} className="rounded border px-3 py-2">
+            <select value={type} onChange={(e) => setType(e.target.value)} className="rounded-xl border border-blue-100 px-3 py-2 bg-white">
               <option>Workshop</option>
               <option>Hackathon</option>
               <option>Webinar</option>
               <option>Competition</option>
               <option>Codeathon</option>
             </select>
-            <input required value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Venue" className="rounded border px-3 py-2" />
+            <input required value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Venue" className="rounded-xl border border-blue-100 px-3 py-2 bg-white" />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
-            <input required type="datetime-local" value={schedule} onChange={(e) => setSchedule(e.target.value)} className="rounded border px-3 py-2" />
-            <input required type="number" min={1} value={String(capacity)} onChange={(e) => setCapacity(Number(e.target.value || ""))} placeholder="Capacity" className="rounded border px-3 py-2" />
+            <input required type="datetime-local" value={schedule} onChange={(e) => setSchedule(e.target.value)} className="rounded-xl border border-blue-100 px-3 py-2 bg-white" />
+            <input required type="number" min={1} value={String(capacity)} onChange={(e) => setCapacity(Number(e.target.value || ""))} placeholder="Capacity" className="rounded-xl border border-blue-100 px-3 py-2 bg-white" />
           </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
-            <select value={eligibilityBranch} onChange={(e) => setEligibilityBranch(e.target.value)} className="rounded border px-3 py-2">
+            <select value={eligibilityBranch} onChange={(e) => setEligibilityBranch(e.target.value)} className="rounded-xl border border-blue-100 px-3 py-2 bg-white">
               <option value="*">All Branches</option>
               <option value="CSE">CSE</option>
               <option value="ISE">ISE</option>
               <option value="EC">EC</option>
             </select>
-            <select value={semester} onChange={(e) => setSemester(e.target.value)} className="rounded border px-3 py-2">
+            <select value={semester} onChange={(e) => setSemester(e.target.value)} className="rounded-xl border border-blue-100 px-3 py-2 bg-white">
               <option value="*">All Semesters</option>
               <option value="1">1</option>
               <option value="2">2</option>
@@ -266,19 +233,18 @@ export default function OrganizeEventModal({
             </select>
           </div>
 
-          {/* New tag-style interests input */}
           <div ref={containerRef} className="relative">
             <label className="block text-sm font-medium text-slate-700 mb-2">Interests (optional)</label>
 
             <div
-              className="min-h-[44px] w-full rounded border px-3 py-2 flex items-center gap-2 flex-wrap"
+              className="min-h-[44px] w-full rounded-xl border border-blue-100 px-3 py-2 flex items-center gap-2 flex-wrap bg-white"
               onClick={() => {
                 setDropdownOpen(true);
                 setTimeout(() => inputRef.current?.focus(), 0);
               }}
             >
               {selectedInterests.map((it) => (
-                <span key={it} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2 py-1 text-xs">
+                <span key={it} className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs">
                   <span>{it}</span>
                   <button
                     type="button"
@@ -304,15 +270,14 @@ export default function OrganizeEventModal({
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder={selectedInterests.length === 0 ? "Type or pick interests…" : "Add more interests…"}
-                className="flex-1 min-w-[120px] outline-none text-sm"
+                className="flex-1 min-w-[120px] outline-none text-sm bg-white"
                 aria-expanded={dropdownOpen}
                 aria-haspopup="listbox"
               />
             </div>
 
-            {/* dropdown */}
             {dropdownOpen && (
-              <div className="absolute z-20 mt-1 w-full max-h-48 overflow-auto rounded border bg-white shadow" role="listbox">
+              <div className="absolute z-20 mt-1 w-full max-h-48 overflow-auto rounded-xl border border-blue-100 bg-white shadow" role="listbox">
                 {filteredOptions.length === 0 ? (
                   <div className="p-2 text-sm text-slate-500">No matches</div>
                 ) : (
@@ -320,12 +285,11 @@ export default function OrganizeEventModal({
                     <div
                       key={opt}
                       onMouseDown={(ev) => {
-                        // use onMouseDown to avoid losing focus before click
                         ev.preventDefault();
                         addInterest(opt);
                       }}
                       onMouseEnter={() => setHighlightIndex(idx)}
-                      className={`px-3 py-2 cursor-pointer text-sm ${idx === highlightIndex ? "bg-slate-100" : ""}`}
+                      className={`px-3 py-2 cursor-pointer text-sm ${idx === highlightIndex ? "bg-blue-50" : ""}`}
                       role="option"
                       aria-selected={idx === highlightIndex}
                     >
@@ -347,7 +311,7 @@ export default function OrganizeEventModal({
                 {members.map((m) => {
                   const id = m.studentId ?? m._id ?? "";
                   return (
-                    <label key={id} className="inline-flex items-center gap-2 text-sm">
+                    <label key={id} className="inline-flex items-center gap-3 text-sm">
                       <input
                         type="checkbox"
                         checked={selectedCoordinators.includes(id)}
@@ -365,8 +329,8 @@ export default function OrganizeEventModal({
           </div>
 
           <div className="flex items-center justify-end gap-3 mt-3">
-            <button type="button" onClick={onClose} className="rounded px-3 py-2 border text-sm">Cancel</button>
-            <button type="submit" disabled={submitting} className="rounded bg-blue-600 px-4 py-2 text-sm text-white">
+            <button type="button" onClick={onClose} className="rounded-xl px-3 py-2 border border-blue-100 bg-white text-sm">Cancel</button>
+            <button type="submit" disabled={submitting} className="rounded-xl bg-blue-600 px-4 py-2 text-sm text-white">
               {submitting ? "Creating…" : "Create Event"}
             </button>
           </div>

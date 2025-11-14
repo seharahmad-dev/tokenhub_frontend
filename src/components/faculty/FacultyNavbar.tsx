@@ -90,7 +90,7 @@ export default function FacultyNavbar() {
             {isHod && (
               <a
                 href="/faculty/hod-panel"
-                className="ml-4 rounded-md bg-emerald-600 px-3 py-1.5 text-white text-sm font-medium hover:bg-emerald-700 shadow-sm transition"
+                className="ml-4 rounded-xl bg-emerald-600 px-3 py-1.5 text-white text-sm font-medium hover:bg-emerald-700 shadow-sm transition"
               >
                 HOD Panel
               </a>

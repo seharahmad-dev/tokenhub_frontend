@@ -1,6 +1,5 @@
 import PostCard, { Post } from "./PostCard";
 
-/** Safely coerce whatever came from the API into an array */
 function toArray(input: any): any[] {
   if (Array.isArray(input)) return input;
   if (input && Array.isArray(input.data)) return input.data;
@@ -9,17 +8,11 @@ function toArray(input: any): any[] {
 }
 
 export default function PostsFeed({ posts }: { posts: any }) {
-  // normalize + sort by recency
   const list: Post[] = toArray(posts)
     .map((p: any) => ({
       _id: String(p?._id ?? p?.id ?? Math.random().toString(36).slice(2)),
       author: {
-        name:
-          p?.author?.name ??
-          p?.user?.name ??
-          p?.createdBy?.name ??
-          p?.authorName ??
-          "Anonymous",
+        name: p?.author?.name ?? p?.user?.name ?? p?.createdBy?.name ?? p?.authorName ?? "Anonymous",
         avatar: p?.author?.avatar ?? p?.avatar ?? undefined,
         role: p?.author?.role ?? p?.role ?? undefined,
       },
@@ -39,11 +32,7 @@ export default function PostsFeed({ posts }: { posts: any }) {
     });
 
   if (list.length === 0) {
-    return (
-      <div className="rounded-xl border bg-white p-6 text-sm text-slate-600">
-        No posts yet.
-      </div>
-    );
+    return <div className="rounded-xl border border-blue-100 bg-white p-6 text-sm text-slate-600">No posts yet.</div>;
   }
 
   return (

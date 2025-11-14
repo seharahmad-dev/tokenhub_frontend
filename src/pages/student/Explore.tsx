@@ -43,48 +43,30 @@ export default function Explore() {
 
   useEffect(() => {
     let mounted = true;
-
     async function load() {
       try {
         setLoading(true);
         setErr(null);
-
         const auth = {
           headers: { Authorization: `Bearer ${token}` },
           withCredentials: true,
         };
-
         const [pRes, eRes, cRes] = await Promise.all([
           axios.get(`${DISCUSS_API}/discuss/all`, auth),
           axios.get(`${EVENT_API}/event/all`, auth),
           axios.get(`${CLUB_API}/club/all`, auth),
         ]);
-
         if (!mounted) return;
-
-        // Normalize to arrays defensively
         const rawPosts = asArray(pRes.data);
         const rawEvents = asArray(eRes.data);
         const rawClubs = asArray(cRes.data);
-
-        // Sort posts by recency (createdAt desc; fallback to updatedAt/_id time)
         const sortedPosts = [...rawPosts].sort((a, b) => {
-          const aTime =
-            new Date(a?.createdAt ?? a?.updatedAt ?? 0).getTime() ||
-            mongoIdTime(a?._id);
-          const bTime =
-            new Date(b?.createdAt ?? b?.updatedAt ?? 0).getTime() ||
-            mongoIdTime(b?._id);
+          const aTime = new Date(a?.createdAt ?? a?.updatedAt ?? 0).getTime() || mongoIdTime(a?._id);
+          const bTime = new Date(b?.createdAt ?? b?.updatedAt ?? 0).getTime() || mongoIdTime(b?._id);
           return bTime - aTime;
         });
-
-        // Ensure counts exist so PostsFeed can display them reliably
         const normalizedPosts = sortedPosts.map((p) => {
-          const likesArr = Array.isArray(p.likedBy)
-            ? p.likedBy
-            : Array.isArray(p.likes)
-            ? p.likes
-            : [];
+          const likesArr = Array.isArray(p.likedBy) ? p.likedBy : Array.isArray(p.likes) ? p.likes : [];
           const commentsArr = Array.isArray(p.comments) ? p.comments : [];
           return {
             ...p,
@@ -92,48 +74,26 @@ export default function Explore() {
             commentsCount: commentsArr.length,
           };
         });
-
         setPosts(normalizedPosts);
-        setTopEvents(rawEvents.slice(0, 10));
-
-        // Heuristic “hiring” detection + pick club head name
-        // SHOW clubs where either cl.isHiring === true OR description contains hiring keywords
+        setTopEvents(Array.isArray(rawEvents) ? rawEvents.slice(0, 10) : []);
         const hiring = rawClubs
           .filter((cl: any) => {
-            // explicit flag wins
             if (cl?.isHiring === true) return true;
-
-            // fallback: detect keywords in description or other text fields
             const combinedText = `${cl?.description ?? ""} ${cl?.about ?? ""} ${cl?.announcements ?? ""}`.toString();
-            const hiringHint = /hiring|recruit|applications\s*open|apply|vacancy|vacancies|join us/i.test(
-              combinedText
-            );
-
-            // also ensure club is active (if status exists)
+            const hiringHint = /hiring|recruit|applications\s*open|apply|vacancy|vacancies|join us/i.test(combinedText);
             const isActive = (cl?.status ?? "active") === "active";
-
             return isActive && hiringHint;
           })
           .map((cl: any) => {
-            // Find head robustly: check members array and also fallback to 'members' snapshots
             let head = null;
             if (Array.isArray(cl?.members)) {
               head = cl.members.find((m: any) => {
                 if (!m) return false;
                 const role = (m.role ?? m.position ?? "").toString().toLowerCase();
-                return (
-                  role.includes("club head") ||
-                  role.includes("clubhead") ||
-                  role.includes("president") ||
-                  role.includes("head")
-                );
+                return role.includes("club head") || role.includes("clubhead") || role.includes("president") || role.includes("head");
               });
             }
-
-            // fallback to explicit head fields if present
-            const headName =
-              head?.name ?? cl?.headName ?? cl?.presidentName ?? cl?.leaderName ?? undefined;
-
+            const headName = head?.name ?? cl?.headName ?? cl?.presidentName ?? cl?.leaderName ?? undefined;
             return {
               _id: cl?._id,
               clubName: cl?.clubName,
@@ -141,7 +101,6 @@ export default function Explore() {
               headName,
             };
           });
-
         setHiringClubs(hiring);
       } catch (e: any) {
         setErr(e?.response?.data?.message || "Failed to load explore page");
@@ -149,7 +108,6 @@ export default function Explore() {
         if (mounted) setLoading(false);
       }
     }
-
     load();
     return () => {
       mounted = false;
@@ -157,78 +115,54 @@ export default function Explore() {
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <StudentNavbar />
-
       <main className="container 2xl:px-0 px-4">
-        <div className="max-w-[1280px] mx-auto py-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
-          {/* LEFT: POSTS FEED (recency) */}
+        <div className="max-w-[1280px] mx-auto py-6 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
           <div>
             {loading ? (
-              <div className="rounded-xl border bg-white p-6 text-center">
-                Loading…
-              </div>
+              <div className="rounded-xl border border-blue-100 bg-white p-6 text-center">Loading…</div>
             ) : err ? (
-              <div className="rounded-xl border bg-white p-6 text-rose-600">
-                {err}
-              </div>
+              <div className="rounded-xl border border-rose-100 bg-white p-6 text-rose-600">{err}</div>
             ) : posts.length === 0 ? (
-              <EmptyState
-                title="No posts yet"
-                subtitle="Be the first to start a discussion!"
-              />
+              <EmptyState title="No posts yet" subtitle="Be the first to start a discussion!" />
             ) : (
-              <PostsFeed posts={posts} />
+              <div className="space-y-4">
+                <PostsFeed posts={posts} />
+              </div>
             )}
           </div>
 
-          {/* RIGHT: SUGGESTED (RAG) + TOP EVENTS + CLUBS HIRING */}
           <aside className="space-y-6 sticky top-20 h-fit">
-            <SectionCard title="Suggested for You (RAG)">
+         
               <SuggestedEvents />
-            </SectionCard>
+          
 
             <SectionCard
               title="Top Events"
               action={
-                <a
-                  href="/student/events"
-                  className="text-sm text-blue-600 hover:underline"
-                >
+                <a href="/student/events" className="text-sm text-blue-600 hover:underline">
                   View more
                 </a>
               }
             >
-              <TopEventsCarousel
-                rows={Array.isArray(topEvents) ? topEvents : []}
-              />
+              <div className="rounded-xl bg-white p-2">
+                <TopEventsCarousel rows={Array.isArray(topEvents) ? topEvents : []} />
+              </div>
             </SectionCard>
 
             <SectionCard title="Clubs Hiring">
               {hiringClubs.length === 0 ? (
-                <div className="text-sm text-slate-600">
-                  No hiring announcements right now. Check back later!
-                </div>
+                <div className="text-sm text-slate-600">No hiring announcements right now. Check back later!</div>
               ) : (
                 <ul className="space-y-3">
                   {hiringClubs.map((c) => (
-                    <li key={c._id} className="rounded-lg border bg-white p-3">
-                      <div className="font-medium">{c.clubName}</div>
-                      {c.headName && (
-                        <div className="text-xs text-slate-600 mt-0.5">
-                          President: {c.headName}
-                        </div>
-                      )}
-                      {c.description && (
-                        <p className="text-sm text-slate-700 mt-2 line-clamp-3">
-                          {c.description}
-                        </p>
-                      )}
+                    <li key={c._id} className="rounded-xl border bg-white p-4">
+                      <div className="font-medium text-slate-900">{c.clubName}</div>
+                      {c.headName && <div className="text-xs text-slate-600 mt-1">President: {c.headName}</div>}
+                      {c.description && <p className="text-sm text-slate-700 mt-2 line-clamp-3">{c.description}</p>}
                       <div className="mt-3">
-                        <a
-                          href={`/student/clubs?apply=${c._id}`}
-                          className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white"
-                        >
+                        <a href={`/student/clubs?apply=${c._id}`} className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-3 py-1.5 text-sm text-white">
                           Apply
                         </a>
                       </div>

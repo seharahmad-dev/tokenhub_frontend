@@ -429,7 +429,7 @@ export default function StudentDashboard() {
       <main className="container 2xl:px-0 px-4">
         <div className="max-w-[1280px] mx-auto py-10">
           {loading ? (
-            <div className="rounded-2xl bg-white/90 p-10 shadow-2xl border border-blue-100 text-center">Loading…</div>
+            <div className="rounded-2xl bg-white/90 p-10 shadow-xl border border-blue-100 text-center">Loading…</div>
           ) : err ? (
             <div className="rounded-2xl bg-white p-4 shadow-sm border border-rose-100 text-rose-600">{err}</div>
           ) : !me ? (
@@ -440,7 +440,7 @@ export default function StudentDashboard() {
             <div className="grid lg:grid-cols-12 gap-6">
               {/* LEFT */}
               <div className="lg:col-span-8 space-y-6">
-                <div className="rounded-2xl bg-white p-6 shadow-md border border-blue-100">
+                <div className="rounded-2xl bg-white p-6 border border-blue-100">
                   <h1 className="text-2xl font-semibold text-slate-900">Welcome back, {me.firstName} 👋</h1>
                   <p className="mt-2 text-slate-600">{me.branch} • Semester {me.semester}</p>
                 </div>
@@ -549,22 +549,7 @@ export default function StudentDashboard() {
                         <LeaderboardMini rows={shownLeaderboard as any} />
                       </div>
 
-                      {leaderboardRows.length > 0 && (
-                        <div className="mt-3 flex justify-center">
-                          <button
-                            className="text-sm px-3 py-1 rounded-full bg-white border border-blue-100 shadow-sm hover:bg-blue-50 text-blue-700"
-                            onClick={() => {
-                              if (isShowingAll) {
-                                setVisibleCount(10);
-                              } else {
-                                setVisibleCount((prev) => Math.min(prev + 10, leaderboardRows.length));
-                              }
-                            }}
-                          >
-                            {isShowingAll ? "Show less" : hasMore ? "Show more" : "Show all"}
-                          </button>
-                        </div>
-                      )}
+                      
                     </>
                   )}
                 </SectionCard>
