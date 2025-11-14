@@ -250,11 +250,11 @@ export default function FacultyDashboard() {
           <div className="grid lg:grid-cols-12 gap-6">
             {/* LEFT */}
             <div className="lg:col-span-8 space-y-6">
-              <SectionCard title={`Welcome${me ? `, ${me.firstName ?? ""} ${me.lastName ?? ""}` : ""}`}>
-                <p className="text-sm text-emerald-700">
-                  This dashboard shows events you are associated with. Manage event details from the Events page.
-                </p>
-              </SectionCard>
+              <div className="rounded-2xl bg-white p-6 border border-blue-100">
+                  <h1 className="text-2xl font-semibold text-slate-900">Welcome back, {me?.firstName ?? "Faculty"} {me?.lastName ?? "Faculty"} 👋</h1>
+                  <p className="mt-2 text-slate-600">This dashboard shows events you are associated with. Manage event details from the Events page.</p>
+                </div>
+              
 
               <SectionCard title="Events organized by you">
                 <FacultyEventsList events={events} loading={eventsLoading} />
