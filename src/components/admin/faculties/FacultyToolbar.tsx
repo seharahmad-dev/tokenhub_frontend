@@ -1,3 +1,5 @@
+import IconButton from "../../common/IconButton";
+
 type Props = {
   q: string;
   onQChange: (v: string) => void;
@@ -6,33 +8,39 @@ type Props = {
   onAdd: () => void;
 };
 
-export default function FacultyToolbar({ q, onQChange, branch, onBranchChange, onAdd }: Props) {
+export default function FacultyToolbar({
+  q,
+  onQChange,
+  branch,
+  onBranchChange,
+  onAdd,
+}: Props) {
   return (
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-1 gap-2">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex w-full gap-3">
         <input
           value={q}
           onChange={(e) => onQChange(e.target.value)}
-          placeholder="Search name, email, designation…"
-          className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
+          placeholder="Search faculty by name, email or designation…"
+          className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none"
         />
         <select
           value={branch}
           onChange={(e) => onBranchChange(e.target.value)}
-          className="rounded-lg border px-3 py-2 text-sm outline-none focus:ring"
+          className="w-40 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
         >
-          <option value="">All Branches</option>
+          <option value="">All branches</option>
           <option value="CSE">CSE</option>
           <option value="ISE">ISE</option>
           <option value="ECE">ECE</option>
         </select>
       </div>
-      <button
-        onClick={onAdd}
-        className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-      >
-        + Add Faculty
-      </button>
+
+      <div className="flex gap-2">
+        <IconButton title="Add Faculty" onClick={onAdd} tone="primary">
+          <span>＋</span> Add
+        </IconButton>
+      </div>
     </div>
   );
 }
