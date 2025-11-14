@@ -6,6 +6,12 @@ import EmptyState from "../../components/common/EmptyState";
 import LeaderboardMini from "../../components/student/LeaderboardMini";
 import ClubsMini from "../../components/student/ClubsMini";
 import EventsMini from "../../components/student/EventsMini";
+import { useAppDispatch, useAppSelector } from "../../app/hooks";
+import {
+  setSuggestedEvents,
+  clearSuggestedEvents,
+  selectSuggestedEvents,
+} from "../../app/studentSlice";
 
 type Branch = "CSE" | "ISE" | "ECE" | string;
 
@@ -41,6 +47,9 @@ const TOKEN_API = (import.meta.env.VITE_TOKEN_API as string) || "";
 const EVENT_API = (import.meta.env.VITE_EVENT_API as string) || ""; // events service
 
 export default function StudentDashboard() {
+  const dispatch = useAppDispatch();
+  const suggestedEvents = useAppSelector(selectSuggestedEvents);
+
   const [me, setMe] = useState<Student | null>(null);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [eventsParticipated, setEventsParticipated] = useState<EventRow[]>([]);
@@ -55,6 +64,12 @@ export default function StudentDashboard() {
   const [leaderErr, setLeaderErr] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState<number>(10);
 
+  const [findModalOpen, setFindModalOpen] = useState(false);
+  const [findText, setFindText] = useState("");
+  const [wordCount, setWordCount] = useState(0);
+  const [findSubmitting, setFindSubmitting] = useState(false);
+  const [findErr, setFindErr] = useState<string | null>(null);
+
   const token = useMemo(() => sessionStorage.getItem("accessToken") || "", []);
   const userObj = useMemo(() => {
     try {
@@ -63,6 +78,15 @@ export default function StudentDashboard() {
       return null;
     }
   }, []);
+
+  // count words in findText
+  useEffect(() => {
+    const wc = findText
+      .trim()
+      .split(/\s+/)
+      .filter((s) => s.length > 0).length;
+    setWordCount(wc);
+  }, [findText]);
 
   useEffect(() => {
     let mounted = true;
@@ -331,6 +355,52 @@ export default function StudentDashboard() {
   const hasMore = leaderboardRows.length > visibleCount;
   const isShowingAll = leaderboardRows.length > 0 && visibleCount >= leaderboardRows.length;
 
+  // ---- RAG: submit interests to EVENT_API/rag-ai ----
+  async function submitFind() {
+    setFindErr(null);
+    if (!EVENT_API) {
+      setFindErr("Event service URL not configured.");
+      return;
+    }
+    if (wordCount === 0) {
+      setFindErr("Please describe your interests (at least one word).");
+      return;
+    }
+    if (wordCount > 1000) {
+      setFindErr("Please keep the input within 1000 words.");
+      return;
+    }
+    setFindSubmitting(true);
+    try {
+      const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
+      // send text to rag endpoint - body shape is { text: ... } (adjust if your API expects another key)
+      const res = await axios.post(`${EVENT_API}/rag-ai`, { text: findText }, auth);
+      const payload = res?.data?.data ?? res?.data ?? [];
+      // normalize to EventRow[]
+      const list: EventRow[] = ([] as any[]).concat(payload || []).map((ev: any) => ({
+        _id: String(ev._id ?? ev.id ?? ev.eventId ?? `${Math.random()}`),
+        title: String(ev.title ?? ev.name ?? ev.eventName ?? "Untitled event"),
+        schedule: ev.schedule ? String(ev.schedule) : undefined,
+        venue: ev.venue ? String(ev.venue) : undefined,
+      }));
+
+      // persist in redux (studentSlice)
+      dispatch(setSuggestedEvents(list));
+      setFindModalOpen(false);
+      setFindText("");
+    } catch (e: any) {
+      console.error("RAG find failed:", e);
+      setFindErr(e?.response?.data?.message ?? e?.message ?? "Failed to find events");
+    } finally {
+      setFindSubmitting(false);
+    }
+  }
+
+  // clear suggested events
+  function handleClearSuggested() {
+    dispatch(clearSuggestedEvents());
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <StudentNavbar tokens={tokens} />
@@ -338,7 +408,7 @@ export default function StudentDashboard() {
       <main className="container 2xl:px-0 px-4">
         <div className="max-w-[1280px] mx-auto py-10">
           {loading ? (
-            <div className="rounded-2xl bg-white/80 p-10 shadow-lg border border-blue-100 text-center">Loading…</div>
+            <div className="rounded-2xl bg-white/90 p-10 shadow-2xl border border-blue-100 text-center">Loading…</div>
           ) : err ? (
             <div className="rounded-2xl bg-white p-4 shadow-sm border border-rose-100 text-rose-600">{err}</div>
           ) : !me ? (
@@ -353,19 +423,49 @@ export default function StudentDashboard() {
                   <h1 className="text-2xl font-semibold text-slate-900">Welcome back, {me.firstName} 👋</h1>
                   <p className="mt-2 text-slate-600">{me.branch} • Semester {me.semester}</p>
 
-               
+                  
                 </div>
+
                 <SectionCard
                   title="Suggested for you"
                   action={
-                    <a className="text-sm text-blue-600 hover:underline" href="/student/explore">
-                      Explore
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setFindModalOpen(true);
+                          setFindErr(null);
+                        }}
+                        className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow"
+                      >
+                        Find
+                      </button>
+
+                      <button
+                        onClick={handleClearSuggested}
+                        disabled={!suggestedEvents || suggestedEvents.length === 0}
+                        className={`text-sm px-3 py-1.5 rounded-lg ${
+                          suggestedEvents && suggestedEvents.length > 0
+                            ? "bg-white border border-blue-100 text-blue-700 hover:bg-blue-50 shadow-sm"
+                            : "bg-white border border-blue-50 text-slate-400 cursor-not-allowed"
+                        }`}
+                        title={suggestedEvents && suggestedEvents.length > 0 ? "Clear suggestions" : "No suggestions to clear"}
+                      >
+                        Clear
+                      </button>
+                    </div>
                   }
                 >
-                  <div className="rounded-xl border border-dashed border-blue-50 bg-white p-4 text-sm text-slate-600">
-                    Placeholder — hook this to your RAG service. Show 3–5 recommended events based on
-                    branch/interest/history.
+                  <div className="rounded-2xl border border-dashed border-blue-50 bg-white p-4 text-sm text-slate-600 shadow-sm">
+                    {suggestedEvents && suggestedEvents.length > 0 ? (
+                      <EventsMini rows={suggestedEvents} />
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="text-slate-700">No suggestions yet</div>
+                        <div className="text-xs text-slate-500">
+                          Click <span className="font-medium">Find</span> to describe your interests (up to 1000 words) and get recommended events.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </SectionCard>
 
@@ -377,7 +477,7 @@ export default function StudentDashboard() {
                     </a>
                   }
                 >
-                  <div className="rounded-xl bg-white p-4">
+                  <div className="rounded-2xl bg-white p-4 shadow-sm">
                     <ClubsMini items={clubList} />
                   </div>
                 </SectionCard>
@@ -390,12 +490,10 @@ export default function StudentDashboard() {
                     </a>
                   }
                 >
-                  <div className="rounded-xl bg-white p-4">
+                  <div className="rounded-2xl bg-white p-4 shadow-sm">
                     <EventsMini rows={eventsParticipated} />
                   </div>
                 </SectionCard>
-
-                
               </div>
 
               {/* RIGHT */}
@@ -414,7 +512,7 @@ export default function StudentDashboard() {
                     <div className="p-4 text-rose-600">{leaderErr}</div>
                   ) : (
                     <>
-                      <div className="rounded-xl bg-white p-3">
+                      <div className="rounded-2xl bg-white p-3 shadow-sm">
                         <LeaderboardMini rows={shownLeaderboard as any} />
                       </div>
 
@@ -442,6 +540,83 @@ export default function StudentDashboard() {
           )}
         </div>
       </main>
+
+      {/* Find modal */}
+      {findModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => {
+              if (!findSubmitting) {
+                setFindModalOpen(false);
+                setFindText("");
+                setFindErr(null);
+              }
+            }}
+          />
+
+          <div className="relative w-full max-w-3xl mx-auto">
+            <div className="rounded-2xl bg-white p-6 shadow-2xl border border-blue-100">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Find events — tell us about your interests</h2>
+                  <p className="text-xs text-slate-500 mt-1">Describe your interests, experience, or what you're looking for (up to 1000 words).</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (!findSubmitting) {
+                      setFindModalOpen(false);
+                      setFindText("");
+                      setFindErr(null);
+                    }
+                  }}
+                  className="text-slate-400 hover:text-slate-600 rounded-full p-1"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <textarea
+                  value={findText}
+                  onChange={(e) => setFindText(e.target.value)}
+                  rows={10}
+                  className="w-full rounded-xl border border-blue-100 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  placeholder="E.g. I'm interested in robotics competitions, hackathons for beginners, workshops on embedded systems, and networking events..."
+                />
+                <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                  <div>Words: {wordCount}/1000</div>
+                  <div>{findErr && <span className="text-rose-600">{findErr}</span>}</div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setFindModalOpen(false);
+                    setFindText("");
+                    setFindErr(null);
+                  }}
+                  disabled={findSubmitting}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-blue-100 text-sm text-blue-700 hover:bg-blue-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={submitFind}
+                  disabled={findSubmitting || wordCount === 0 || wordCount > 1000}
+                  className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {findSubmitting ? "Finding…" : "Find"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
