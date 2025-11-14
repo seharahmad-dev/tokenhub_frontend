@@ -1,3 +1,4 @@
+// src/pages/student/StudentDashboard.tsx
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import StudentNavbar from "../../components/student/StudentNavbar";
@@ -5,7 +6,8 @@ import SectionCard from "../../components/common/SectionCard";
 import EmptyState from "../../components/common/EmptyState";
 import LeaderboardMini from "../../components/student/LeaderboardMini";
 import ClubsMini from "../../components/student/ClubsMini";
-import EventsMini from "../../components/student/EventsMini";
+// replaced EventsMini with EventCard
+import EventCard from "../../components/student/EventCard";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import {
   setSuggestedEvents,
@@ -27,7 +29,7 @@ type Student = {
 };
 
 type Club = { _id: string; clubName: string };
-type EventRow = { _id: string; title: string; schedule?: string; venue?: string };
+type EventRow = { _id: string; title: string; schedule?: string; venue?: string; description?: string; type?: string; capacity?: number; eligibility?: any; organisingBranch?: string; permission?: string };
 type LeaderboardRow = { _id: string; name: string; points: number };
 type RegistrationRow = {
   _id: string;
@@ -163,6 +165,12 @@ export default function StudentDashboard() {
             title: String(ev.title ?? ev.name ?? `Event ${String(ev._id ?? ev.id ?? "")}`),
             schedule: ev.schedule ? String(ev.schedule) : undefined,
             venue: ev.venue ? String(ev.venue) : undefined,
+            description: ev.description ?? ev.desc ?? undefined,
+            type: ev.type ?? undefined,
+            capacity: typeof ev.capacity === "number" ? ev.capacity : undefined,
+            eligibility: ev.eligibility ?? undefined,
+            organisingBranch: ev.organisingBranch ?? ev.branch ?? undefined,
+            permission: ev.permission ?? undefined,
           }));
 
           // Load local fallback registered/participated lists if any
@@ -225,6 +233,11 @@ export default function StudentDashboard() {
                 title: String(ev.title ?? `Event ${String(ev._id ?? ev.id ?? ev)}`),
                 schedule: ev.schedule ? String(ev.schedule) : undefined,
                 venue: ev.venue ? String(ev.venue) : undefined,
+                description: ev.description ?? undefined,
+                type: ev.type ?? undefined,
+                capacity: typeof ev.capacity === "number" ? ev.capacity : undefined,
+                organisingBranch: ev.organisingBranch ?? undefined,
+                permission: ev.permission ?? undefined,
               });
             }
             const map = new Map<string, EventRow>();
@@ -374,14 +387,22 @@ export default function StudentDashboard() {
     try {
       const auth = { headers: { Authorization: `Bearer ${token}` }, withCredentials: true };
       // send text to rag endpoint - body shape is { text: ... } (adjust if your API expects another key)
-      const res = await axios.post(`${EVENT_API}/rag-ai`, { text: findText }, auth);
-      const payload = res?.data?.data ?? res?.data ?? [];
+      const res = await axios.post(`${EVENT_API}/event/rag-ai`, { text: findText }, auth);
+      console.log(res);
+      
+      const payload = res?.data?.data.events;
       // normalize to EventRow[]
       const list: EventRow[] = ([] as any[]).concat(payload || []).map((ev: any) => ({
         _id: String(ev._id ?? ev.id ?? ev.eventId ?? `${Math.random()}`),
         title: String(ev.title ?? ev.name ?? ev.eventName ?? "Untitled event"),
         schedule: ev.schedule ? String(ev.schedule) : undefined,
         venue: ev.venue ? String(ev.venue) : undefined,
+        description: ev.description ?? undefined,
+        type: ev.type ?? undefined,
+        capacity: typeof ev.capacity === "number" ? ev.capacity : undefined,
+        eligibility: ev.eligibility ?? undefined,
+        organisingBranch: ev.organisingBranch ?? undefined,
+        permission: ev.permission ?? undefined,
       }));
 
       // persist in redux (studentSlice)
@@ -422,8 +443,6 @@ export default function StudentDashboard() {
                 <div className="rounded-2xl bg-white p-6 shadow-md border border-blue-100">
                   <h1 className="text-2xl font-semibold text-slate-900">Welcome back, {me.firstName} 👋</h1>
                   <p className="mt-2 text-slate-600">{me.branch} • Semester {me.semester}</p>
-
-                  
                 </div>
 
                 <SectionCard
@@ -457,7 +476,13 @@ export default function StudentDashboard() {
                 >
                   <div className="rounded-2xl border border-dashed border-blue-50 bg-white p-4 text-sm text-slate-600 shadow-sm">
                     {suggestedEvents && suggestedEvents.length > 0 ? (
-                      <EventsMini rows={suggestedEvents} />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {suggestedEvents.map((ev) => (
+                          
+                          
+                          <EventCard key={ev._id} e={ev as any} participated={false} />
+                        ))}
+                      </div>
                     ) : (
                       <div className="space-y-2">
                         <div className="text-slate-700">No suggestions yet</div>
@@ -491,7 +516,15 @@ export default function StudentDashboard() {
                   }
                 >
                   <div className="rounded-2xl bg-white p-4 shadow-sm">
-                    <EventsMini rows={eventsParticipated} />
+                    {eventsParticipated && eventsParticipated.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {eventsParticipated.map((ev) => (
+                          <EventCard key={ev._id} e={ev as any} participated={true} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-500">You haven't participated in any events yet.</div>
+                    )}
                   </div>
                 </SectionCard>
               </div>
