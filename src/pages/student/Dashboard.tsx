@@ -435,7 +435,7 @@ export default function StudentDashboard() {
                           setFindModalOpen(true);
                           setFindErr(null);
                         }}
-                        className="text-sm px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow"
+                        className=" bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-sm font-medium shadow"
                       >
                         Find
                       </button>
@@ -443,7 +443,7 @@ export default function StudentDashboard() {
                       <button
                         onClick={handleClearSuggested}
                         disabled={!suggestedEvents || suggestedEvents.length === 0}
-                        className={`text-sm px-3 py-1.5 rounded-lg ${
+                        className={`text-sm px-3 py-1.5 rounded-xl ${
                           suggestedEvents && suggestedEvents.length > 0
                             ? "bg-white border border-blue-100 text-blue-700 hover:bg-blue-50 shadow-sm"
                             : "bg-white border border-blue-50 text-slate-400 cursor-not-allowed"
@@ -559,7 +559,7 @@ export default function StudentDashboard() {
             <div className="rounded-2xl bg-white p-6 shadow-2xl border border-blue-100">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Find events — tell us about your interests</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">Find events - tell us about your interests</h2>
                   <p className="text-xs text-slate-500 mt-1">Describe your interests, experience, or what you're looking for (up to 1000 words).</p>
                 </div>
 
@@ -600,7 +600,7 @@ export default function StudentDashboard() {
                     setFindErr(null);
                   }}
                   disabled={findSubmitting}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-blue-100 text-sm text-blue-700 hover:bg-blue-50"
+                  className="px-3 py-1.5 rounded-xl bg-white border border-blue-100 text-sm text-blue-700 hover:bg-blue-50"
                 >
                   Cancel
                 </button>
@@ -608,7 +608,7 @@ export default function StudentDashboard() {
                 <button
                   onClick={submitFind}
                   disabled={findSubmitting || wordCount === 0 || wordCount > 1000}
-                  className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {findSubmitting ? "Finding…" : "Find"}
                 </button>

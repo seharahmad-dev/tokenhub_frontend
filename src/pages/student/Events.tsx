@@ -60,22 +60,31 @@ export default function Events() {
 
         const rows: EventRow[] = eventRes.data?.data ?? eventRes.data ?? [];
 
-        // <-- NEW: only keep events that are explicitly Approved
+        // keep only events that are explicitly Approved
         const approvedEvents = rows.filter((r) => String(r.permission ?? "").toLowerCase() === "approved");
 
         setEvents(approvedEvents);
 
         // Preserve fallback local storage ids (if you still want them)
-        const localRegistered = JSON.parse(sessionStorage.getItem("registeredEventIds") || "[]");
-        const localParticipated = JSON.parse(sessionStorage.getItem("participatedEventIds") || "[]");
+        const localRegistered = (() => {
+          try {
+            return JSON.parse(sessionStorage.getItem("registeredEventIds") || "[]");
+          } catch {
+            return [];
+          }
+        })();
+        const localParticipated = (() => {
+          try {
+            return JSON.parse(sessionStorage.getItem("participatedEventIds") || "[]");
+          } catch {
+            return [];
+          }
+        })();
 
         const mine = new Set<string>([...localRegistered, ...localParticipated]);
 
         // Normalize registration response
-        const regData: RegistrationRow[] =
-          regRes?.data?.data ??
-          regRes?.data ??
-          [];
+        const regData: RegistrationRow[] = regRes?.data?.data ?? regRes?.data ?? [];
 
         if (Array.isArray(regData)) {
           for (const r of regData) {
@@ -135,21 +144,23 @@ export default function Events() {
   }, [events, filter, registeredEventIds]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <StudentNavbar />
 
       <main className="container 2xl:px-0 px-4">
-        <div className="max-w-[1280px] mx-auto py-6 space-y-6">
+        <div className="max-w-[1280px] mx-auto py-8 space-y-6">
           <header className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold">Events</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">Events</h1>
 
-            <div className="inline-flex rounded-lg border bg-white p-1">
+            <div className="inline-flex rounded-xl bg-white border border-blue-100 p-1 shadow-sm">
               {(["upcoming", "past", "mine"] as FilterKey[]).map((key) => (
                 <button
                   key={key}
                   onClick={() => setFilter(key)}
-                  className={`px-3 py-1.5 text-sm rounded-md ${
-                    filter === key ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"
+                  className={`px-3 py-1.5 text-sm rounded-xl transition ${
+                    filter === key
+                      ? "bg-blue-600 text-white shadow"
+                      : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   {key === "upcoming" ? "Upcoming" : key === "past" ? "Past" : "My Events"}
@@ -160,9 +171,9 @@ export default function Events() {
 
           <SectionCard title="">
             {loading ? (
-              <div className="rounded-xl border bg-white p-6 text-center">Loading…</div>
+              <div className="rounded-xl border bg-white p-6 text-center shadow-sm">Loading…</div>
             ) : err ? (
-              <div className="rounded-xl border bg-white p-6 text-rose-600">{err}</div>
+              <div className="rounded-xl border bg-white p-6 text-rose-600 shadow-sm">{err}</div>
             ) : filtered.length === 0 ? (
               <EmptyState
                 title={

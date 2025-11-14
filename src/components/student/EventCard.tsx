@@ -19,7 +19,7 @@ export type EventRow = {
 export default function EventCard({
   e,
   participated,
-  onRegister, // optional now
+  onRegister, // optional
 }: {
   e: EventRow;
   participated: boolean;
@@ -40,9 +40,6 @@ export default function EventCard({
 
   const showRegister = !isPast && !participated;
 
-  console.log(e);
-
-
   const handleRegister = () => {
     if (onRegister) {
       onRegister(e._id);
@@ -52,10 +49,10 @@ export default function EventCard({
   };
 
   return (
-    <div className="rounded-xl border bg-white p-4 sm:p-5">
+    <div className="rounded-xl border bg-white p-4 sm:p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold">{e.title}</h3>
+        <div className="min-w-0">
+          <h3 className="text-lg font-semibold text-slate-900 truncate">{e.title}</h3>
           <div className="mt-1 text-sm text-slate-600">
             <span className="inline-block mr-3">
               Type: <b>{e.type || "—"}</b>
@@ -68,8 +65,9 @@ export default function EventCard({
 
         <div className="shrink-0 text-right">
           <div
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${isPast ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-700"
-              }`}
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+              isPast ? "bg-slate-100 text-slate-700" : "bg-emerald-50 text-emerald-700"
+            }`}
             title="Date & time"
           >
             {isPast ? "Past" : "Upcoming"}
@@ -106,7 +104,6 @@ export default function EventCard({
                 ? "All"
                 : `${e?.eligibility?.branch ?? ""}${e?.eligibility?.branch && e?.eligibility?.semester ? " " : ""}${e?.eligibility?.semester ?? ""}`}
             </b>
-
           </div>
         )}
       </div>
@@ -119,14 +116,14 @@ export default function EventCard({
         {showRegister ? (
           <button
             onClick={handleRegister}
-            className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="inline-flex items-center rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 shadow-sm"
           >
             Register Now
           </button>
         ) : (
           <button
             disabled
-            className="inline-flex items-center rounded-lg bg-slate-200 px-3 py-2 text-sm font-medium text-slate-600"
+            className="inline-flex items-center rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600"
             title={isPast ? "Event already happened" : "You have already registered"}
           >
             {isPast ? "Closed" : "Registered"}
