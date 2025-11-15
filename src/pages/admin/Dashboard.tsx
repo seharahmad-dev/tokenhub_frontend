@@ -7,15 +7,27 @@ import axios from "axios";
 
 type Branch = "CSE" | "ISE" | "ECE" | string;
 
+// Faculty shape: backend may return `name` OR `firstName`/`lastName`.
+// We include optional firstName/lastName to be safe, but normalize to `name`.
 type Student = { _id: string; name: string; email: string; branch: Branch };
-type Faculty = { _id: string; name: string; collegeEmail: string; branch: Branch };
-type Hod = { _id: string; firstName: string; lastName: string; email: string; branch: Branch };
+type Faculty = {
+  _id: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  collegeEmail?: string;
+  branch?: Branch;
+  isHod?: string; // department name when this faculty is HOD (truthy string), otherwise undefined
+  [k: string]: any;
+};
+type Hod = Faculty; // HOD is just a Faculty entry with isHod set
+
 type Club = {
   _id: string;
   clubName: string;
   head?: { name?: string; email?: string };
   presidentName?: string;
-  members: Array<{
+  members?: Array<{
     studentId: string; // ObjectId (Student)
     name: string;
     email: string;
@@ -26,7 +38,6 @@ type Club = {
 
 const STUDENT_API = import.meta.env.VITE_STUDENT_API as string;
 const FACULTY_API = import.meta.env.VITE_FACULTY_API as string;
-const HOD_API = import.meta.env.VITE_HOD_API as string;
 const CLUB_API = import.meta.env.VITE_CLUB_API as string;
 
 export default function AdminDashboard() {
@@ -39,8 +50,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     let mounted = true;
+
     async function load() {
       try {
+        setLoading(true);
         const token = sessionStorage.getItem("accessToken");
 
         const auth = {
@@ -48,19 +61,41 @@ export default function AdminDashboard() {
           withCredentials: true,
         };
 
-        setLoading(true);
-        const [s, f, h, c] = await Promise.all([
+        const [s, f, c] = await Promise.all([
           axios.get(`${STUDENT_API}/student/all`, auth),
           axios.get(`${FACULTY_API}/faculty/all`, auth),
-          axios.get(`${HOD_API}/hod/all`, auth),
           axios.get(`${CLUB_API}/club/all`, auth),
         ]);
         if (!mounted) return;
 
-        setStudents(s.data?.data ?? s.data ?? []);
-        setFaculty(f.data?.data ?? f.data ?? []);
-        setHods(h.data?.data ?? h.data ?? []);
-        setClubs(c.data?.data ?? c.data ?? []);
+        const studentsData = s.data?.data ?? s.data ?? [];
+        const facultyDataRaw = f.data?.data ?? f.data ?? [];
+        const clubsData = c.data?.data ?? c.data ?? [];
+
+        // Normalize faculty so each item has a `name` field (prefer `name`, fallback to first+last)
+        const normalizedFaculty: Faculty[] = Array.isArray(facultyDataRaw)
+          ? facultyDataRaw.map((fac: any) => {
+              const name =
+                `${(fac.firstName ?? "").toString().trim()} ${(fac.lastName ?? "").toString().trim()}`.trim() ||
+                undefined;
+              return {
+                ...fac,
+                name,
+                collegeEmail: fac.collegeEmail ?? fac.email ?? undefined,
+                branch: fac.branch ?? undefined,
+                isHod: fac.isHod ?? undefined,
+              } as Faculty;
+            })
+          : [];
+
+        setStudents(studentsData);
+        setFaculty(normalizedFaculty);
+
+        // HODs: simply filter faculty entries where isHod is truthy.
+        const hodsData: Hod[] = normalizedFaculty.filter((fac) => !!fac.isHod);
+
+        setHods(hodsData);
+        setClubs(clubsData);
         setErr(null);
       } catch (e: any) {
         setErr(e?.response?.data?.message || "Failed to fetch dashboard data");
@@ -68,7 +103,9 @@ export default function AdminDashboard() {
         setLoading(false);
       }
     }
+
     load();
+
     return () => {
       mounted = false;
     };
@@ -82,11 +119,10 @@ export default function AdminDashboard() {
 
   const facultyByBranch = useMemo(() => {
     const map: Record<string, number> = {};
-    faculty.forEach((f) => (map[f.branch] = (map[f.branch] ?? 0) + 1));
+    faculty.forEach((f) => (map[f.branch ?? "Unknown"] = (map[f.branch ?? "Unknown"] ?? 0) + 1));
     return map;
   }, [faculty]);
 
-  // Simple helpers for chart rendering
   const barDataFromMap = (m: Record<string, number>) => {
     const entries = Object.entries(m);
     if (entries.length === 0) return [];
@@ -126,7 +162,7 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatTile title="Total Students" value={students.length} />
                 <StatTile title="Total Faculties" value={faculty.length} />
-                <StatTile title="Departments" value={hods.length} />
+                <StatTile title="Departments (HODs)" value={hods.length} />
                 <StatTile title="Clubs" value={clubs.length} />
               </div>
 
@@ -199,9 +235,9 @@ export default function AdminDashboard() {
                     <tbody>
                       {hods.map((h) => (
                         <tr key={h._id} className="border-b last:border-none hover:bg-red-50/30 transition-colors">
-                          <td className="py-2 pr-4">{h.branch || "—"}</td>
-                          <td className="py-2 pr-4">{(h.firstName + " " + h.lastName) || "—"}</td>
-                          <td className="py-2 pr-4">{h.email || "—"}</td>
+                          <td className="py-2 pr-4">{h.isHod || "—"}</td>
+                          <td className="py-2 pr-4">{h.firstName + " " + h.lastName}</td>
+                          <td className="py-2 pr-4">{h.collegeEmail ?? h.email ?? "—"}</td>
                         </tr>
                       ))}
                       {hods.length === 0 && (
@@ -228,13 +264,8 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {clubs.map((c) => {
-                        // Find the head/president in the members array
-                        const head = c.members?.find(
-                          (m) => m.role === "Club Head" 
-                        );
-
-                        const headName = head?.name ?? "—";
-
+                        const head = c.members?.find((m) => m.role === "Club Head" || m.role === "Head");
+                        const headName = head?.name ?? c.head?.name ?? c.presidentName ?? "—";
                         return (
                           <tr
                             key={c._id}
