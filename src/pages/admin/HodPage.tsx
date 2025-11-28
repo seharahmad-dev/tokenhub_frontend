@@ -17,7 +17,7 @@ const getApiBase = (role: "Admin" | "Student" | "Faculty" | "HOD" | "Club") => {
     case "Faculty":
       return import.meta.env.VITE_FACULTY_API;
     case "HOD":
-      return import.meta.env.VITE_FACULTY_API; // IMPORTANT: HOD is represented by Faculty now
+      return import.meta.env.VITE_HOD_API; // IMPORTANT: HOD is represented by Faculty now
     case "Club":
       return import.meta.env.VITE_CLUB_API;
   }
@@ -187,7 +187,7 @@ export default function HodPage() {
       const facultyId = (hod as any)?._faculty?._id ?? id;
 
       // endpoint to unset HOD: adjust if your backend uses different path/method
-      await apiClient.post(`${API_FACULTY}/faculty/${facultyId}/unset-hod`, {}, axiosConfig);
+      await apiClient.post(`http://localhost:4004/api/hod/${facultyId}/deleteHod`, {}, axiosConfig);
 
       fetchAll();
     } catch (e) {
