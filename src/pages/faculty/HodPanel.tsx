@@ -118,8 +118,8 @@ export default function HodPanel() {
             <div className="flex items-center gap-3">
               <select value={filter} onChange={(e) => setFilter(e.target.value as any)} className="px-3 py-2 rounded border text-sm">
                 <option value="All">All</option>
-                <option value="Approved">Approved</option>
-                <option value="Unapproved">Unapproved</option>
+                <option value="Approved">Unapproved</option>
+                <option value="Unapproved">Approved</option>
               </select>
             </div>
           </div>
@@ -144,7 +144,6 @@ export default function HodPanel() {
                     <div className="flex gap-2 items-start">
                       {ev.permission !== "Approved" && <button onClick={() => approveEvent(ev._id)} className="text-sm px-2 py-1 rounded border text-emerald-700">Approve</button>}
                       {ev.permission === "Approved" && <button onClick={() => disapproveEvent(ev._id)} className="text-sm px-2 py-1 rounded border text-rose-600">Disapprove</button>}
-                      <a href={`/event/${ev._id}`} className="text-sm px-2 py-1 rounded border text-slate-700">View</a>
                     </div>
                   </div>
                 ))}

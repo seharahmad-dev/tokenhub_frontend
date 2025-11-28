@@ -170,7 +170,7 @@ export default function EventManageWinners() {
       <StudentNavbar />
       <main className="container 2xl:px-0 px-4 py-8">
         <div className="max-w-[980px] mx-auto space-y-6">
-          <SectionCard title={`Manage winners — Event ${eventId ?? ""}`}>
+          <SectionCard title={`Manage winners`}>
             <div className="mb-4 flex items-center gap-3">
               <input value={filter} onChange={(e)=>setFilter(e.target.value)} placeholder="Search team name" className="rounded-xl border border-blue-100 px-3 py-2 w-full bg-white" />
               <button onClick={()=>{ setFilter(""); }} className="px-3 py-2 rounded-xl border border-blue-100 bg-white text-sm">Clear</button>
@@ -214,7 +214,7 @@ export default function EventManageWinners() {
 
                   <div className="mb-3">
                     <button onClick={creditAll} disabled={processing} className="px-4 py-2 rounded-xl bg-blue-600 text-white">
-                      {processing ? "Processing…" : "Award tokens (call backend)"}
+                      {processing ? "Processing…" : "Award tokens"}
                     </button>
                   </div>
 

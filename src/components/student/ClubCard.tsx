@@ -143,13 +143,7 @@ export default function ClubCard({
         <span className="font-medium">President:</span> {president}
       </div>
 
-      <div className="mt-4 flex items-center gap-3">
-        <a
-          href={`/student/clubs/${club._id}`}
-          className="inline-flex items-center justify-center rounded-xl border border-blue-100 px-3 py-2 text-sm text-blue-700 bg-white shadow-sm"
-        >
-          View details
-        </a>
+      <div className="mt-4 flex items-center gap-3">        
 
         {hiring ? (
           alreadyInClubs || isPrimaryClub ? (
