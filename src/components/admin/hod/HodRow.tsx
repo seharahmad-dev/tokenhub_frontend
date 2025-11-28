@@ -30,7 +30,6 @@ export default function HodRow({ h, onEdit, onDelete }: Props) {
       <td className="px-4 py-3">{h.email ?? "-"}</td>
       <td className="px-4 py-3 text-right">
         <div className="flex justify-end gap-2">
-          <IconButton title="Edit" onClick={() => onEdit(h)}>✎ Edit</IconButton>
           <IconButton title="Delete" onClick={() => onDelete(h._id)} tone="danger">🗑 Delete</IconButton>
         </div>
       </td>
