@@ -92,7 +92,7 @@ export default function HodPage() {
 
   // assign modal selection state
   const [selectedFacultyId, setSelectedFacultyId] = useState<string | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<"CSE" | "ISE" | "ECE" | "">("");
+  const [selectedBranch, setSelectedBranch] = useState<"CSE" | "ISE" | "EC" | "">("");
   const [assignLoading, setAssignLoading] = useState(false);
 
   const API_FACULTY = getApiBase("Faculty")!;
@@ -114,7 +114,7 @@ export default function HodPage() {
       const allFac: any[] = res?.data?.data ?? res?.data ?? [];
       // HODs are faculties where isHod is truthy and one of allowed strings
       const hods = allFac
-        .filter((f) => f.isHod && ["CSE", "ISE", "ECE"].includes(String(f.isHod)))
+        .filter((f) => f.isHod && ["CSE", "ISE", "EC"].includes(String(f.isHod)))
         // map faculty shape into Hod shape expected by HodRow / HodForm — we keep using the same fields
         .map((f) => ({
           _id: f._id,
@@ -209,7 +209,7 @@ export default function HodPage() {
       const res = await apiClient.get(`${API_FACULTY}/faculty/all`);
       const allFac: any[] = res?.data?.data ?? res?.data ?? [];
       // eligible faculties do not have isHod set (falsey) or not one of allowed strings
-      const eligible = allFac.filter((f) => !f.isHod || !["CSE", "ISE", "ECE"].includes(String(f.isHod)));
+      const eligible = allFac.filter((f) => !f.isHod || !["CSE", "ISE", "EC"].includes(String(f.isHod)));
       setFaculties(eligible);
     } catch (err) {
       console.error("Failed to load faculties for assign modal", err);
@@ -243,7 +243,7 @@ export default function HodPage() {
       // optionally refresh faculties list in modal (in case admin keeps it open)
       const res = await apiClient.get(`${API_FACULTY}/faculty/all`);
       const allFac: any[] = res?.data?.data ?? res?.data ?? [];
-      const eligible = allFac.filter((f) => !f.isHod || !["CSE", "ISE", "ECE"].includes(String(f.isHod)));
+      const eligible = allFac.filter((f) => !f.isHod || !["CSE", "ISE", "EC"].includes(String(f.isHod)));
       setFaculties(eligible);
 
       alert("HOD assigned successfully");
@@ -353,12 +353,12 @@ export default function HodPage() {
                   <select
                     className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-1 focus:ring-red-300 outline-none bg-white"
                     value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value as "CSE" | "ISE" | "ECE" | "")}
+                    onChange={(e) => setSelectedBranch(e.target.value as "CSE" | "ISE" | "EC" | "")}
                   >
                     <option value="">— select branch —</option>
                     <option value="CSE">CSE</option>
                     <option value="ISE">ISE</option>
-                    <option value="ECE">ECE</option>
+                    <option value="EC">ECE</option>
                   </select>
                 </div>
 
@@ -393,7 +393,7 @@ export default function HodPage() {
                 ? {
                     firstName: editRow.firstName,
                     lastName: editRow.lastName,
-                    branch: editRow.branch as "" | "CSE" | "ISE" | "ECE",
+                    branch: editRow.branch as "" | "CSE" | "ISE" | "EC",
                     phone: editRow.phone,
                     tenureStart: (editRow as any).tenureStart ?? "",
                     tenureEnd: (editRow as any).tenureEnd ?? "",
@@ -417,7 +417,7 @@ export type Hod = {
   _id: string;
   firstName: string;
   lastName: string;
-  branch: "CSE" | "ISE" | "ECE" | string;
+  branch: "CSE" | "ISE" | "EC" | string;
   email: string;
   phone?: string;
   tenureStart?: string;
@@ -427,7 +427,7 @@ export type Hod = {
 export type HodPayload = {
   firstName: string;
   lastName: string;
-  branch: "CSE" | "ISE" | "ECE" | "";
+  branch: "CSE" | "ISE" | "EC" | "";
   email?: string;        // required at register
   password?: string;     // required at register
   phone?: string;
