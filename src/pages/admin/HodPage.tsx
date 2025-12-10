@@ -265,7 +265,7 @@ export default function HodPage() {
           <header className="mb-6 flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900">HODs</h1>
-              <p className="text-sm text-slate-600">Assign, update, remove and search HODs (backed by Faculty).</p>
+              <p className="text-sm text-slate-600">Assign, update, remove and search HODs.</p>
             </div>
             
           </header>

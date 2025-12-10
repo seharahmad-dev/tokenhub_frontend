@@ -4,9 +4,7 @@ import StudentNavbar from "../../components/student/StudentNavbar";
 import SectionCard from "../../components/common/SectionCard";
 import EmptyState from "../../components/common/EmptyState";
 
-const EVENT_API = (import.meta.env.VITE_EVENT_API as string) || "";
 const REG_API = (import.meta.env.VITE_REG_API as string) || "";
-const TOKEN_API = (import.meta.env.VITE_TOKEN_API as string) || "";
 
 type Registration = {
   _id: string;
@@ -79,15 +77,6 @@ export default function EventManageWinners() {
   const filtered = registrations.filter((r) =>
     !filter ? true : (String(r.teamName || "").toLowerCase().includes(filter.toLowerCase()))
   );
-
-  const computeTokens = (participantsCount: number, rank?: number) => {
-    const Base = 10;
-    const gammaMap = { 1: 20, 2: 10, 3: 5 };
-    const bonus = rank ? (gammaMap[rank as keyof typeof gammaMap] || 0) : 0;
-    const alpha = 2;
-    const tokens = Math.round(Base + alpha * Math.log(participantsCount + 1) + bonus);
-    return tokens;
-  };
 
   const buildWinnersPayload = (base = 10, duration = 1) => {
     const winners: { teamName: string; rank: number }[] = [];

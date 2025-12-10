@@ -169,7 +169,7 @@ export default function AdminDashboard() {
               {/* Student + Faculty distribution side-by-side on md+ screens */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Students by Department */}
-                <DataCard title="Student Distribution — by Department">
+                <DataCard title="Student Distribution - by Department">
                   <div className="grid grid-cols-1 gap-4">
                     <div>
                       {studentBars.length === 0 ? (
@@ -195,7 +195,7 @@ export default function AdminDashboard() {
                 </DataCard>
 
                 {/* Faculty by Department */}
-                <DataCard title="Faculty Distribution — by Department">
+                <DataCard title="Faculty Distribution - by Department">
                   <div className="grid grid-cols-1 gap-4">
                     <div>
                       {facultyBars.length === 0 ? (

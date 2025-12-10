@@ -16,7 +16,7 @@ export default function Home() {
             <p className="mt-4 text-lg text-gray-600">Choose your portal to continue</p>
             <p className="mt-3 text-gray-500 max-w-2xl mx-auto leading-relaxed">
               Your unified authentication system for campus services. Access dashboards, manage activities,
-              and stay updated — all from one secure portal.
+              and stay updated - all from one secure portal.
             </p>
           </header>
 

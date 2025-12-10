@@ -114,7 +114,7 @@ export default function HodPanel() {
       <main className="container 2xl:px-0 px-4">
         <div className="max-w-[1280px] mx-auto py-8">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-semibold">HOD Panel — {hodBranch}</h1>
+            <h1 className="text-2xl font-semibold">HOD Panel - {hodBranch}</h1>
             <div className="flex items-center gap-3">
               <select value={filter} onChange={(e) => setFilter(e.target.value as any)} className="px-3 py-2 rounded border text-sm">
                 <option value="All">All</option>

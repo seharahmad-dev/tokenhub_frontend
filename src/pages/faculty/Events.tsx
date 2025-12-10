@@ -88,7 +88,10 @@ export default function FacultyEventsPage(): JSX.Element {
     }
     try {
       setLoading(true);
-      const r = await axios.get(`${FACULTY_API}/faculty/${encodeURIComponent(facultyId)}/events`, auth);
+      const r = await axios.get(
+        `${FACULTY_API}/faculty/${encodeURIComponent(facultyId)}/events`,
+        auth
+      );
       const payload = r?.data?.data ?? r?.data ?? [];
       if (Array.isArray(payload) && payload.length > 0 && typeof payload[0] === "string") {
         const fetches = payload.map((id: string) =>
@@ -123,32 +126,6 @@ export default function FacultyEventsPage(): JSX.Element {
       setAllEvents((s) => [created, ...s]);
     }
   }, []);
-
-  const handleDelete = useCallback(
-    async (eventId: string) => {
-      if (!me?._id) {
-        alert("Faculty identity missing");
-        return;
-      }
-      const ok = confirm("Delete this event? This action cannot be undone.");
-      if (!ok) return;
-      try {
-        await axios.delete(`${EVENT_API}/event/${encodeURIComponent(eventId)}/faculty/${encodeURIComponent(me._id)}`, auth);
-        setMyEvents((s) => s.filter((e) => {
-          const id = String(e._id ?? e.id ?? e.eventId ?? "");
-          return id !== String(eventId);
-        }));
-        setAllEvents((s) => s.filter((e) => {
-          const id = String(e._id ?? e.id ?? e.eventId ?? "");
-          return id !== String(eventId);
-        }));
-      } catch (error) {
-        console.error("Delete failed:", error);
-        alert("Failed to delete event");
-      }
-    },
-    [EVENT_API, me?._id, auth]
-  );
 
   const now = Date.now();
   const isPast = (isoOrDate: string | Date) => {
@@ -192,7 +169,11 @@ export default function FacultyEventsPage(): JSX.Element {
                         : "text-emerald-800 hover:bg-emerald-50"
                     }`}
                   >
-                    {key === "upcoming" ? "Upcoming" : key === "past" ? "Past" : "My Events"}
+                    {key === "upcoming"
+                      ? "Upcoming"
+                      : key === "past"
+                      ? "Past"
+                      : "My Events"}
                   </button>
                 ))}
               </div>
@@ -208,7 +189,9 @@ export default function FacultyEventsPage(): JSX.Element {
 
           <SectionCard title="">
             {loading ? (
-              <div className="rounded-xl border border-emerald-100 bg-white p-6 text-center shadow-sm text-emerald-700">Loading…</div>
+              <div className="rounded-xl border border-emerald-100 bg-white p-6 text-center shadow-sm text-emerald-700">
+                Loading…
+              </div>
             ) : displayed.length === 0 ? (
               <EmptyState
                 title={
@@ -233,12 +216,17 @@ export default function FacultyEventsPage(): JSX.Element {
                   const title = ev.title ?? ev.name ?? "Untitled event";
                   const isMy = Boolean(
                     me &&
-                      ((Array.isArray(ev.faculties) && ev.faculties.map((f: any) => String(f)).includes(String(me._id))) ||
-                        (ev.organisingFaculty && String(ev.organisingFaculty) === String(me._id)))
+                      ((Array.isArray(ev.faculties) &&
+                        ev.faculties.map((f: any) => String(f)).includes(String(me._id))) ||
+                        (ev.organisingFaculty &&
+                          String(ev.organisingFaculty) === String(me._id)))
                   );
 
                   return (
-                    <div key={id} className="rounded-xl bg-white shadow-sm p-4 flex flex-col gap-3">
+                    <div
+                      key={id}
+                      className="rounded-xl bg-white shadow-sm p-4 flex flex-col gap-3"
+                    >
                       <EventCard
                         e={{
                           _id: id,
@@ -256,21 +244,15 @@ export default function FacultyEventsPage(): JSX.Element {
                         }}
                       />
 
-                      <div className="flex items-center justify-between gap-2">
-                        
-
-                        <div className="flex items-center gap-2">
-                          {isMy && (
-                            <button
-                              onClick={() => handleDelete(id)}
-                              className="px-3 py-2 rounded-xl text-sm ring-1 ring-rose-100 bg-white text-rose-600 hover:bg-rose-50"
-                            >
-                              Delete
-                            </button>
-                          )}
-
-                          
-                        </div>
+                      <div className="flex items-center justify-end gap-2">
+                        {isMy && (
+                          <a
+                            href={`/faculty/manage-winners/${id}`}
+                            className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700"
+                          >
+                            Manage
+                          </a>
+                        )}
                       </div>
                     </div>
                   );
@@ -281,7 +263,11 @@ export default function FacultyEventsPage(): JSX.Element {
         </div>
       </main>
 
-      <OrganizeEventModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={onCreated} />
+      <OrganizeEventModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onCreated={onCreated}
+      />
     </div>
   );
 }

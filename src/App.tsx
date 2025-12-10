@@ -31,17 +31,20 @@ import FacultyEventsPage from "./pages/faculty/Events";
 import HodPanel from "./pages/faculty/HodPanel";
 import EventManageWinners from "./pages/student/EventManageWinners";
 import QuizPage from "./pages/student/QuizPage";
+import FacultyManageWinners from "./pages/faculty/FacultyManageWinners";
 
 // Added import for StorePage (note: file is under pages/faculty per your request)
 import StorePage from "./pages/student/StorePage";
 import FacultyLeaderboardPage from "./pages/faculty/LeaderboardPage";
 import FacultyProfilePage from "./components/faculty/FacultyProfilePage";
+import DevelopersPage from "./pages/Creators";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/creators" element={<DevelopersPage />} />
         <Route path="/login/student" element={<StudentLogin />} />
         <Route path="/login/faculty" element={<FacultyLogin />} />      
         <Route path="/login/admin" element={<AdminLogin />} />
@@ -78,6 +81,7 @@ export default function App() {
         <Route path="/faculty/hod-panel" element={<HodPanel />} />
         <Route path="/faculty/leaderboard" element={<FacultyLeaderboardPage />} />
         <Route path="/faculty/profile" element={<FacultyProfilePage />} />
+        <Route path="/faculty/manage-winners/:id" element={<FacultyManageWinners />} />
 
       </Routes>
     </BrowserRouter>

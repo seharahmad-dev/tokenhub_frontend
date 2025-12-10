@@ -94,7 +94,7 @@ export default function FacultyLeaderboardPage() {
       <FacultyNavbar />
       <main className="container 2xl:px-0 px-4 py-8">
         <div className="max-w-[1100px] mx-auto space-y-6">
-          <SectionCard title="Leaderboard — College-wide">
+          <SectionCard title="Leaderboard : College-wide">
             {loading ? (
               <div className="p-4 text-center">Loading…</div>
             ) : error ? (

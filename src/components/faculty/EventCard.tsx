@@ -40,9 +40,7 @@ export default function EventCard({
         <div>
           <h3 className="text-lg font-semibold">{e.title}</h3>
           <div className="mt-1 text-sm text-slate-600">
-            <span className="inline-block mr-3">
-              Type: <b>{e.type || "—"}</b>
-            </span>
+            
             <span className="inline-block mr-3">
               Venue: <b>{e.venue || "—"}</b>
             </span>
@@ -79,27 +77,10 @@ export default function EventCard({
           </div>
         )}
 
-        {e.eligibility && (
-          <div className="text-slate-600">
-            <span className="inline-block w-24 text-slate-500">Eligibility:</span>
-            <b>
-              {e.eligibility.branch === "*" &&
-              e.eligibility.semester === "*"
-                ? "All"
-                : `${e.eligibility.branch ?? ""}${
-                    e.eligibility.branch && e.eligibility.semester ? " " : ""
-                  }${e.eligibility.semester ?? ""}`}
-            </b>
-          </div>
-        )}
+        
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-xs text-slate-500">
-          Branch: {e.organisingBranch || "—"} • Status:{" "}
-          {e.permission || "—"}
-        </div>
-      </div>
+      
     </div>
   );
 }
